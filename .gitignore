@@ -41,3 +41,11 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+*.d
+*.o
+Debug/RV_software.hex
+*.atsuo
+Debug/RV_software.elf
+*.a
+Debug/RV_software.eep
+*.cppproj
