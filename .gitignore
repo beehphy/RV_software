@@ -49,3 +49,5 @@ Debug/RV_software.elf
 *.a
 Debug/RV_software.eep
 *.cppproj
+Visual Micro/.RV_software.vsarduino.h
+*.xml
