@@ -1,6 +1,5 @@
-// RV led controller 
+// RV led controller - Jesse Banks
 // 2/23/15
-//#define F_CPU 16000000UL
 
 //#include <eeprom.h>
 #include <Arduino.h>
@@ -9,9 +8,39 @@
 #include <avr/io.h>
 #include <string.h>
 
-//#define LCD_RESOLUTION 12864
+typedef struct LED {
+	uint8_t customColor;
+	uint8_t r;
+	uint8_t g;
+	uint8_t b;
+	uint8_t	redPin;
+	uint8_t greenPin;
+	uint8_t bluePin;
+} Output;
+typedef struct RGB {
+	uint8_t g;
+	uint8_t r;
+	uint8_t b;
+} RedGreenBlue;
+typedef struct HSV {
+	uint8_t h;
+	uint8_t s;
+	uint8_t v;
+} HueSatVal;
+typedef struct TIMER {
+	int time;
+	int midnight;
+	int rate;
+} Clock;
+typedef struct {
+	int period;
+	int rise;
+	int width;
+	int fall;
+	int count;
+} Wave;// #define HW 328 //WS_STD 0V2
 
-// #define HW 328 //WS_STD 0V2
+//#define HW 328 //pnp feeder HW
 #define HW 329 //pnp feeder HW
 // #define HW 2560 //final 2560 HW
 
@@ -66,11 +95,6 @@
 	#define SA0 A12 
 	#define LCD_RESOLUTION 12832
 #endif
-
-Encoder knob(ENCODER_A, ENCODER_B);
-#define MENU_TIMEOUT 1000 //10 per socond
-#define DIAL_DETENT 2 //4 for blue type knob, 2 for green type knob
-
 #if(1) // Oled generic config defs, if'd to hide in IDE
 	#define BOOL uint8_t
 	#define OLED_ADDRESS    0x78
@@ -233,8 +257,115 @@ static uint8_t PROGMEM custom5x8[][5] = { // A place for custom characters
 	{ 0x7f, 0x41, 0x41, 0x41, 0x7f }   // ?
 };
 
+Output leds[LEDS]; //0 is temp
+HSV globalColorHSV[LEDS];
+RGB one;
+uint8_t globalIntensity;
+uint8_t mainMode;
+uint8_t patternMode;
+uint8_t colorMode;
+uint8_t speedMode;
+uint8_t brightnessMode;
+int rainbowClock;
 uint8_t   lcdRow      = 0;
 uint8_t   lcdColumn   = 0;
+Encoder knob(ENCODER_A, ENCODER_B);
+#define MENU_TIMEOUT 1000 //10 per socond
+#define DIAL_DETENT 2 //4 for blue type knob, 2 for green type knob
+#define MENU_TITLE 0
+#define MENU_START 1
+#define MENU_SIZE 255
+enum mainModes {
+	MAIN_TITLE			= MENU_TITLE,
+	MAIN_PATTERN		= MENU_START,
+	MAIN_COLOR						,
+	MAIN_BRIGHTNESS					,
+	MAIN_EXIT						,
+	MAIN_SIZE			= MENU_SIZE
+};
+enum patternModes {
+	PATTERN_TITLE			= MENU_TITLE ,
+	PATTERN_SOLID			= MENU_START ,
+	PATTERN_FADES						 ,
+	PATTERN_PULSE						 ,
+	PATTERN_HEARTBEAT					 ,
+	PATTERN_EXIT						 ,
+	PATTERN_SIZE			= MENU_SIZE
+	};
+enum speedModes
+{
+	SPEED_TITLE				= MENU_TITLE,
+	SPEED_1					= MENU_START,
+	SPEED_2					= 2			,
+	SPEED_3					= 5			,
+	SPEED_4					= 9			,
+	SPEED_5					= 13		,
+	SPEED_EXIT							,
+	SPEED_SIZE					= MENU_SIZE
+};
+enum colorModes
+{
+	COLOR_TITLE						= MENU_TITLE,
+	COLOR_BEHAVIOR					= MENU_START,
+	COLOR_GLOBAL1								,
+	COLOR_GLOBAL2								,
+	COLOR_GLOBAL3								,
+	COLOR_GLOBAL4								,
+	COLOR_EXIT									,
+	COLOR_MENU_SIZE					= MENU_SIZE
+};
+enum colorGlobalModes
+{
+	COLOR_GLOBAL_TITLE						= MENU_TITLE,
+	COLOR_GLOBAL_SOLID						= MENU_START,
+	COLOR_GLOBAL_SEQUENCE								,
+	COLOR_GLOBAL_RAINBOW								,
+	COLOR_GLOBAL_RANDOM									,
+	COLOR_GLOBAL_EXIT									,
+	COLOR_GLOBAL_MENU_SIZE					= MENU_SIZE
+};
+enum colorBehaviorModes
+{
+	COLOR_BEHAVIOR_TITLE					= MENU_TITLE,
+	COLOR_BEHAVIOR_SOLID					= MENU_START,
+	COLOR_BEHAVIOR_SEQUENCE								,
+	COLOR_BEHAVIOR_RAINBOW								,
+	COLOR_BEHAVIOR_RANDOM								,
+	COLOR_BEHAVIOR_EXIT									,
+	COLOR_BEHAVIOR_MENU_SIZE				= MENU_SIZE
+};
+enum colorSelectModes {
+	COLOR_SELECT_TITLE				= MENU_TITLE,
+	COLOR_SELECT_RED				= MENU_START,
+	COLOR_SELECT_ORANGE							,
+	COLOR_SELECT_YELLOW							,
+	COLOR_SELECT_GREEN							,
+	COLOR_SELECT_TEAL							,
+	COLOR_SELECT_BLUE							,
+	COLOR_SELECT_SKY							,
+	COLOR_SELECT_VIOLET							,
+	COLOR_SELECT_PINK							,
+	COLOR_SELECT_WHITE							,
+	COLOR_SELECT_CUSTOM							,
+	COLOR_SELECT_RAINBOW_ROLL					,
+	COLOR_SELECT_EXIT							,
+	COLOR_SELECT_MENU_SIZE			= MENU_SIZE
+};
+enum brightnessModes
+{
+	BRIGHT_TITLE				= MENU_TITLE,
+	BRIGHT_1					= MENU_START,
+	BRIGHT_2								,
+	BRIGHT_3								,
+	BRIGHT_4								,
+	BRIGHT_5								,
+	BRIGHT_6								,
+	BRIGHT_7								,
+	BRIGHT_8								,
+	BRIGHT_EXIT								,
+	BRIGHT_SIZE					= MENU_SIZE
+};
+
 void twiInit(void)
 {
 	TWSR = 0x00; //clears the prescaler (twps0 twps1) bits for F set
@@ -323,7 +454,7 @@ void lcdInit(void)
 	twiStop();
 }
 #define MIN(x, y) x < y ? x : y;
-#define MAX(x, y) x > y ? x : y;
+//#define MAX(x, y) x > y ? x : y;
 void lcdSetPos(uint8_t row, uint8_t column)
 {
 	row = MIN(row, MAX_ROWS);
@@ -452,57 +583,13 @@ void lcdPrintln(char *buffer)
 	lcdPrint(buffer);
 	lcdWriteChar('\n');
 }
-
-typedef struct {
-	int red;
-	int green;
-	int blue;
-	uint8_t	redPin;
-	uint8_t greenPin;
-	uint8_t bluePin;
-}ledOutput;
-typedef struct {
-	uint8_t g;
-	uint8_t r;
-	uint8_t b;
-}rgb;
-typedef struct {
-	uint8_t h;
-	uint8_t s;
-	uint8_t v;
-}hsv;
-typedef struct {
-	uint8_t x;
-	uint8_t y;
-}coordinate;
-typedef struct {
-	int time;
-	int midnight;
-	int rate;
-}clock;
-typedef struct {
-	int period;
-	int rise;
-	int width;
-	int fall;
-	int count;
-} wave;
 	
-ledOutput leds[5]; //0 is temp
-char mainMode;
-char patternMode;
-char colorMode;
-char speedMode;
-char brightness;
 
-#define MENU_TITLE 0
-#define MENU_START 1
-#define MENU_SIZE 255
 
 // Button routines
 void buttonDebounce()
 {
-	#define DEBOUNCE_LOOPS 20000; //approximately the microsecond delay after button is released
+	#define DEBOUNCE_LOOPS 20000; //approximately 1 millisecond delay after button is released
 	int x = DEBOUNCE_LOOPS;  //start countdown
 	while(x > 0)
 	{
@@ -533,7 +620,7 @@ int a2i(char *s)
 	}
 	return num;
 }
-int a2iSign(char *s)
+int a2iSigned(char *s)
 {
 	int sign = 1;
 	if(*s == '-') // is first char indicate negative
@@ -549,6 +636,148 @@ int a2iSign(char *s)
 	}
 	return num;//*sign;
 }
+
+RGB hsvToRgb(HSV input)
+{
+	RGB tempRGB;
+	unsigned char region, p, q, t;
+	unsigned int h, s, v, remainder;
+
+	if (input.s == 0)
+	{
+		tempRGB.r = input.v;
+		tempRGB.g = input.v;
+		tempRGB.b = input.v;
+		return (tempRGB);
+	}
+
+	// converting to 16 bit to prevent overflow
+	h = input.h;
+	s = input.s;
+	v = input.v;
+
+	region = h / 43;
+	remainder = (h - (region * 43)) * 6;
+
+	p = (v * (255 - s)) >> 8;
+	q = (v * (255 - ((s * remainder) >> 8))) >> 8;
+	t = (v * (255 - ((s * (255 - remainder)) >> 8))) >> 8;
+
+	switch (region)
+	{
+		case 0:
+		tempRGB.r = v;
+		tempRGB.g = t;
+		tempRGB.b = p;
+		break;
+		case 1:
+		tempRGB.r = q;
+		tempRGB.g = v;
+		tempRGB.b = p;
+		break;
+		case 2:
+		tempRGB.r = p;
+		tempRGB.g = v;
+		tempRGB.b = t;
+		break;
+		case 3:
+		tempRGB.r = p;
+		tempRGB.g = q;
+		tempRGB.b = v;
+		break;
+		case 4:
+		tempRGB.r = t;
+		tempRGB.g = p;
+		tempRGB.b = v;
+		break;
+		default:
+		tempRGB.r = v;
+		tempRGB.g = p;
+		tempRGB.b = q;
+		break;
+	}
+	return tempRGB;
+}
+void clockUpdate()
+{
+	rainbowClock += speedMode;//
+}
+void updateLedOutputs()                     
+{
+	int i = 0; 
+	while (i <= LEDS)
+	{
+		analogWrite(leds[i].redPin, leds[i].r);
+		analogWrite(leds[i].greenPin, leds[i].g);
+		analogWrite(leds[i].bluePin, leds[i].b);
+		i++;
+	}
+}
+void updateLEDsColorSingle (struct HSV inputHSV)
+{
+	RGB tempRGB = hsvToRgb(inputHSV);
+	int i = 0;
+	while (i <= LEDS)
+	{
+		leds[i].r = tempRGB.r;
+		leds[i].g = tempRGB.g;
+		leds[i].b = tempRGB.b;
+		i++;
+	}
+	updateLedOutputs();
+}
+int patternRender(uint8_t ledNumber)
+{
+	return(0);
+}
+HSV colorRandomHSV(uint8_t ledNumber)
+{
+	HSV tempHSV;
+	tempHSV.s = 255;
+	tempHSV.v = 127;
+	tempHSV.h = 0;
+	return(tempHSV);
+
+}
+HSV colorSequenceRender(uint8_t ledNumber)
+{
+	HSV tempHSV;
+	tempHSV.s = 255;
+	tempHSV.v = 127;
+	if (colorMode == COLOR_SELECT_CUSTOM) {tempHSV.h = leds[ledNumber].customColor;} 
+	return(tempHSV);
+}
+RGB colorValueRender(uint8_t intensity,  uint8_t ledNumber)
+{
+	HSV tempHSV;
+	tempHSV.s = 255;
+	tempHSV.v = 127;
+	if		(colorMode == COLOR_BEHAVIOR_SOLID		) {tempHSV.h = globalColorHSV[ledNumber].h;}
+	else if (colorMode == COLOR_BEHAVIOR_SEQUENCE	) {tempHSV = colorSequenceRender(ledNumber);}
+	else if (colorMode == COLOR_BEHAVIOR_RAINBOW	) {tempHSV.h = globalColorHSV[ledNumber].h + rainbowClock;}
+	else if (colorMode == COLOR_BEHAVIOR_RANDOM		) {tempHSV = colorRandomHSV(ledNumber);}
+	RGB tempRGB = hsvToRgb(tempHSV);
+	tempRGB.r = (tempRGB.r * intensity) / 255;
+	tempRGB.g = (tempRGB.g * intensity) / 255;
+	tempRGB.b = (tempRGB.b * intensity) / 255;
+	return(tempRGB);
+}
+void updateLEDs ()
+{
+	clockUpdate();
+	RGB tempRGB;
+	int i = 0; 
+	while (i <= LEDS)
+	{
+		tempRGB = colorValueRender(patternRender(i), i);
+		leds[i].r = (tempRGB.r * globalIntensity) / 255;
+		leds[i].g = (tempRGB.g * globalIntensity) / 255;
+		leds[i].b = (tempRGB.b * globalIntensity) / 255;
+		i++;
+	}
+	updateLedOutputs();
+}
+
 uint8_t runMenu(char* (*useMenu)(uint8_t), uint8_t menuPos)
 {
 	buttonDebounce();
@@ -584,19 +813,78 @@ uint8_t runMenu(char* (*useMenu)(uint8_t), uint8_t menuPos)
 	}
 	return(MENU_TITLE);  //result = timeout
 }
+uint8_t valueMenu (uint8_t *startingValue, int increment, int minimum, int maximum, uint8_t rolloverBOOL)
+{
+	char tempChar[5]; //needed for itoa
+	int tempINT = int(*startingValue);
+	HSV tempHSV;
+	tempHSV.s = 255;
+	tempHSV.v = 127;
+	long oldKnob, newKnob; //vars for dealing with encoder
+	oldKnob = newKnob = knob.read(); //initial values
+	long menuTimeout = MENU_TIMEOUT; //countdown timeout
+	lcdClearLine(1);
+	lcdPrint(itoa(tempINT, tempChar, 10));
+	while (menuTimeout != 0)
+	{
+		newKnob = knob.read();
+		if(newKnob <= oldKnob-DIAL_DETENT)
+		{
+			oldKnob = oldKnob-DIAL_DETENT;
+			menuTimeout = MENU_TIMEOUT;
+			tempINT += increment;
+			if (tempINT >= maximum) 
+			{
+				if (rolloverBOOL)
+				{
+					tempINT -= maximum - minimum;
+				}
+				else
+				{
+					tempINT = maximum;
+				}
+			}
+			lcdClearLine(1);
+			lcdPrint(itoa(tempINT, tempChar, 10));
+			lcdPrint("     ");
+			tempHSV.h = tempINT;	
+			updateLEDsColorSingle(tempHSV);
+			
+		}
+		else if(newKnob >= oldKnob+DIAL_DETENT)
+		{
+			oldKnob = oldKnob+DIAL_DETENT;
+			menuTimeout = MENU_TIMEOUT;
+			startingValue -= increment;
+			if (tempINT <= minimum)
+			{
+				if (rolloverBOOL)
+				{
+					tempINT += maximum - minimum;
+				}
+				else
+				{
+					tempINT = minimum;
+				}
+			}lcdSetPos(1,0);
+			lcdPrint(itoa(tempINT, tempChar, 10));
+			lcdPrint("     ");
+			tempHSV.h = tempINT;
+			updateLEDsColorSingle(tempHSV);	
+		}
+		if (digitalRead(PUSH_BUTTON)) //was pressed return current selection
+		{
+			buttonDebounce(); 
+			//*startingValue = 
+			return(1);
+		}  
+	}
+	*startingValue = uint8_t(tempINT);  //result = timeout no change
+};
 char* errorMessage () {return("*Error*");}  //reduces memory, removes error string info from every menu
-char* exitMessage () {return("Exit and Save");}  //reduces memory, removes error string info from every menu
+char* exitMessage () {return("Nothing and Save");}  //reduces memory, removes error string info from every menu
 
 //pattern  menu	
-enum patternModes {
-	PATTERN_TITLE			= MENU_TITLE ,
-	PATTERN_SOLID			= MENU_START ,
-	PATTERN_FADES						 ,
-	PATTERN_PULSE						 ,
-	PATTERN_HEARTBEAT					 ,
-	PATTERN_EXIT						 ,
-	PATTERN_SIZE			= MENU_SIZE
-	};
 char* patternMenuContent(uint8_t pos)
 {
 	if 		(pos ==	PATTERN_TITLE			)		{return(	"Pattern Menu:"		);}
@@ -619,50 +907,160 @@ void patternMenu()
 	}
 }
 
-int valueMenu (int start, int end, int position)
+int customColorMenu (int startHue) //pick a color hue with the dial
 {
-	char tempChar;
-	int posHold = position;
-	int menuSize = end - start; // turn text returned by menu into a number
-	long oldKnob, newKnob; //vars for dealing with menu position
-	oldKnob = newKnob = knob.read(); //prime them
-	long menuTimeout = MENU_TIMEOUT;
-	while (menuTimeout != 0)
-	{
-		newKnob = knob.read();
-		if(newKnob <= oldKnob-DIAL_DETENT)
-		{
-			oldKnob = oldKnob-DIAL_DETENT;
-			menuTimeout = MENU_TIMEOUT;
-			if (position < end) {position++;};
-			lcdClearLine(1);
-			lcdPrint(itoa(position, &tempChar, 10));
-		}
-		else if(newKnob >= oldKnob+DIAL_DETENT)
-		{
-			oldKnob = oldKnob+DIAL_DETENT;
-			menuTimeout = MENU_TIMEOUT;
-			if (position > start) {position--;};
-			lcdClearLine(1);
-			lcdPrint(itoa(position, &tempChar, 10));
-		}
-
-		if (digitalRead(PUSH_BUTTON)) {buttonDebounce(); return(position);}  //was pressed return current selection
-	}
-	return(posHold);  //result = timeout no change
+	HSV tempHSV;
+	tempHSV.s = 255;
+	tempHSV.v = 127;
+	tempHSV.h = customColorMenu(tempHSV.h);
+	char tempChar[5]; //needed for itoa
+	int result = valueMenu(&tempHSV.h,3,0,255,1);
 }
+
+char* colorSelectContent(uint8_t pos)
+{
+	if 		(pos == COLOR_SELECT_TITLE				)	{return(	"Choose a Color:"		);}
+	else if (pos == COLOR_SELECT_RED				)	{return(	"Red"					);}
+	else if (pos == COLOR_SELECT_ORANGE				)	{return(	"Orange"				);}
+	else if (pos == COLOR_SELECT_YELLOW				)	{return(	"Yellow"				);}
+	else if (pos == COLOR_SELECT_GREEN				)	{return(	"Green"					);}
+	else if (pos == COLOR_SELECT_TEAL				)	{return(	"Teal"					);}
+	else if (pos == COLOR_SELECT_BLUE				)	{return(	"Blue"					);}
+	else if (pos == COLOR_SELECT_SKY				)	{return(	"Sky"					);}
+	else if (pos == COLOR_SELECT_VIOLET				)	{return(	"Violet"				);}
+	else if (pos == COLOR_SELECT_PINK				)	{return(	"Pink"					);}
+	else if (pos == COLOR_SELECT_WHITE				)	{return(	"White"					);}
+	else if (pos == COLOR_SELECT_CUSTOM				)	{return(	"Custom Color"			);}
+	else if (pos == COLOR_SELECT_RAINBOW_ROLL		)	{return(	"Rainbow"				);}
+	else if (pos == COLOR_SELECT_MENU_SIZE			)	{return(	"11"					);}
+	else												{return(	errorMessage()			);}
+}
+char* colorSelectContentSmall(uint8_t pos)
+{
+	if		(pos == COLOR_SELECT_RED		)	{return("Red"			);}
+	else if (pos == COLOR_SELECT_ORANGE		)	{return("Org"			);}
+	else if (pos == COLOR_SELECT_YELLOW		)	{return("Yel"			);}
+	else if (pos == COLOR_SELECT_GREEN		)	{return("Grn"			);}
+	else if (pos == COLOR_SELECT_TEAL		)	{return("Tea"			);}
+	else if (pos == COLOR_SELECT_BLUE		)	{return("Blu"			);}
+	else if (pos == COLOR_SELECT_SKY		)	{return("Sky"			);}
+	else if (pos == COLOR_SELECT_VIOLET		)	{return("Vlt"			);}
+	else if (pos == COLOR_SELECT_PINK		)	{return("Pnk"			);}
+	else if (pos == COLOR_SELECT_WHITE		)	{return("Wht"			);}
+	else if (pos == COLOR_SELECT_CUSTOM		)	{return("Cst"			);}
+	else if (pos == COLOR_SELECT_MENU_SIZE	)	{return("11"			);}
+	else										{return(errorMessage()	);}
+}
+RGB colorSelectMenu(uint8_t pos)//, uint8_t *colorSpace)
+{
+	HSV tempHSV;
+	tempHSV.s = 255;
+	tempHSV.v = 127;
+	tempHSV.h = 0;//*colorSpace;
+	uint8_t	result = pos;
+	while (result != MAIN_EXIT && result != MENU_TITLE)
+	{
+		result = runMenu(colorSelectContent, result);
+		if		(result == COLOR_SELECT_RED						) {tempHSV.h = 0;}
+		else if (result == COLOR_SELECT_ORANGE					) {tempHSV.h = 15;}
+		else if (result == COLOR_SELECT_YELLOW					) {tempHSV.h = 30;}
+		else if (result == COLOR_SELECT_GREEN					) {tempHSV.h = 86;}
+		else if (result == COLOR_SELECT_TEAL					) {tempHSV.h = 105;}
+		else if (result == COLOR_SELECT_BLUE					) {tempHSV.h = 150;}
+		else if (result == COLOR_SELECT_SKY						) {tempHSV.h = 172;}
+		else if (result == COLOR_SELECT_VIOLET					) {tempHSV.h = 190;}
+		else if (result == COLOR_SELECT_PINK					) {tempHSV.h = 234;}
+		else if (result == COLOR_SELECT_WHITE					) {tempHSV.v = 255; tempHSV.s = 0;}
+		else if (result == COLOR_SELECT_CUSTOM					) {tempHSV.h = customColorMenu(tempHSV.h);}
+		updateLEDsColorSingle(tempHSV);
+	}
+	return(hsvToRgb(tempHSV));
+}
+
+char* colorBehaviorMenuContent(uint8_t pos)
+{
+	if 		(pos == COLOR_BEHAVIOR_TITLE			)	{return(	"Color Behavior:"		);}
+	else if (pos == COLOR_BEHAVIOR_SOLID			)	{return(	"Static"				);}
+	else if (pos == COLOR_BEHAVIOR_SEQUENCE			)	{return(	"Sequence"				);}
+	else if (pos == COLOR_BEHAVIOR_RAINBOW			)	{return(	"Rainbow"				);}
+	else if (pos == COLOR_BEHAVIOR_RANDOM			)	{return(	"Random"				);}
+	else if (pos == COLOR_BEHAVIOR_MENU_SIZE		)	{return(	"4"					);}
+	else												{return(	errorMessage()			);}
+}
+void colorBehaviorMenu()
+{
+	uint8_t	result = colorMode;
+	while (result != MAIN_EXIT && result != MENU_TITLE)
+	{
+		result = runMenu(colorBehaviorMenuContent, result);
+		if		(result >= COLOR_BEHAVIOR_SOLID		)	{colorMode = 	result;}
+		else if (result == COLOR_BEHAVIOR_SEQUENCE	)	{colorMode = 	result;}
+		else if (result == COLOR_BEHAVIOR_RAINBOW	)	{colorMode = 	result;} // rainbow driven by a counter signal
+		else if (result == COLOR_BEHAVIOR_RANDOM	)	{colorMode = 	result;} // random has no control
+		else									{	} //clean up after menu
+	}
+}
+
+// brightness routines
+char* brightnessMenuContent(uint8_t pos)
+{
+	if 		(pos == BRIGHT_TITLE	)	{return("Brightness Menu:"		);}
+	else if (pos == BRIGHT_1		)	{return("Brightness 100%"		);}
+	else if (pos == BRIGHT_2		)	{return("Brightness 80%"		);}
+	else if (pos == BRIGHT_3		)	{return("Brightness 60%"		);}
+	else if (pos == BRIGHT_4		)	{return("Brightness 40%"		);}
+	else if (pos == BRIGHT_5		)	{return("Brightness 30%"		);}
+	else if (pos == BRIGHT_6		)	{return("Brightness 20%"		);}
+	else if (pos == BRIGHT_7		)	{return("Brightness 10%"		);}
+	else if (pos == BRIGHT_8		)	{return("Brightness 5%"			);}
+	else if (pos == BRIGHT_EXIT		)	{return(exitMessage()			);}
+	else if (pos == BRIGHT_SIZE		)	{return("9"						);}
+	else								{return(errorMessage()			);}
+}
+void brightnessMenu()
+{
+	uint8_t	result = brightnessMode;
+	while (result != BRIGHT_EXIT && result != MENU_TITLE)
+	{
+		result = runMenu(brightnessMenuContent, result);
+		if		(result == BRIGHT_1)  {brightnessMode = result; globalIntensity = 0xff;}
+		else if (result == BRIGHT_2)  {brightnessMode = result; globalIntensity = 0x80;}
+		else if (result == BRIGHT_3)  {brightnessMode = result; globalIntensity = 0x50;}
+		else if (result == BRIGHT_4)  {brightnessMode = result; globalIntensity = 0x30;}
+		else if (result == BRIGHT_5)  {brightnessMode = result; globalIntensity = 0x24;}
+		else if (result == BRIGHT_6)  {brightnessMode = result; globalIntensity = 0x18;}
+		else if (result == BRIGHT_7)  {brightnessMode = result; globalIntensity = 0x10;}
+		else if (result == BRIGHT_8)  {brightnessMode = result; globalIntensity = 0x08;}
+		else {}
+	}
+}
+
+char* speedMenuContent(uint8_t pos)
+{
+	if 		(pos == SPEED_TITLE	)	{return("How Active?"			);}
+	else if (pos == SPEED_1		)	{return("Mellow"				);}
+	else if (pos == SPEED_2		)	{return("Normal"				);}
+	else if (pos == SPEED_3		)	{return("Busy"					);}
+	else if (pos == SPEED_4		)	{return("Dance Party"			);}
+	else if (pos == SPEED_5		)	{return("Seizure"				);}
+	else if (pos == SPEED_SIZE	)	{return("5"						);}
+	else							{return(errorMessage()			);}
+}
+void speedMenu()
+{
+	uint8_t	result = brightnessMode;
+	while (result != BRIGHT_EXIT && result != MENU_TITLE)
+	{
+		result = runMenu(brightnessMenuContent, result);
+		if		(result >= SPEED_1 && result <= SPEED_5)  {speedMode = result;}
+		else {}
+	}
+}
+
 //mainmenu
-enum mainModes {
-	MAIN_TITLE			= MENU_TITLE,
-	MAIN_PATTERN		= MENU_START,
-	MAIN_COLOR						,
-	MAIN_BRIGHTNESS					,
-	MAIN_EXIT						,
-	MAIN_SIZE			= MENU_SIZE
-};
 char* mainMenuContent(uint8_t pos)
 {
-	if 		(pos ==	MAIN_TITLE			)		{return(	"Main Menu:"		);}
+	if 		(pos ==	MAIN_TITLE			)		{return(	"Lets change the"	);}
 	else if (pos == MAIN_PATTERN		)		{return(	"Patterns"			);}
 	else if (pos == MAIN_COLOR			)		{return(	"Colors"			);}
 	else if (pos ==	MAIN_BRIGHTNESS		)		{return(	"Brightness"		);}
@@ -677,9 +1075,9 @@ void mainMenu()
 	{
 		result = runMenu(mainMenuContent, result);
 		if		(result == MAIN_PATTERN		) {patternMenu();		}
-		else if (result == MAIN_PATTERN		) {patternMenu();		}
-		else if (result == MAIN_COLOR		) {patternMenu();		}
-		else if (result == MAIN_BRIGHTNESS	) {patternMenu();		}
+		else if (result == MAIN_PATTERN		) {colorBehaviorMenu();		}
+		else if (result == MAIN_COLOR		) {speedMenu();		}
+		else if (result == MAIN_BRIGHTNESS	) {brightnessMenu();		}
 		else if (result == MAIN_EXIT		) {lcdClearScreen();	} //clean up after menu
 		//else {}
 	}
@@ -726,13 +1124,14 @@ void setup ()
   lcdInit();
   lcdClearScreen();
   lcdSetPos(0,0);
-  lcdPrint("hello");
-  //delay(2500);
-  //mainMenu();
+  lcdPrintln("Wes's RV Light Show");
+  lcdPrint("  By Jopel Designs");
+  delay(2500);
+  lcdClearScreen();
 }
 void loop ()
 {
-		if (digitalRead(PUSH_BUTTON) == 0) {mainMenu(); buttonDebounce();  lcdClearScreen(); } 
-		
-		
+	if (digitalRead(PUSH_BUTTON) == 0) {mainMenu(); buttonDebounce();  lcdClearScreen(); } 
+	updateLEDs();
+	delay(30);
 }
