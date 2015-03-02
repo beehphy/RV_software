@@ -6,9 +6,9 @@
 #include <Encoder.h>
 #include <avr/pgmspace.h>
 #include <avr/io.h>
-#include <string.h>
+//#include <string.h>
 
-typedef struct LED {
+typedef struct {
 	uint8_t customColor;
 	uint8_t r;
 	uint8_t g;
@@ -17,16 +17,16 @@ typedef struct LED {
 	uint8_t greenPin;
 	uint8_t bluePin;
 } Output;
-typedef struct RGB {
+typedef struct {
 	uint8_t g;
 	uint8_t r;
 	uint8_t b;
-} RedGreenBlue;
-typedef struct HSV {
+} RGB;
+typedef struct {
 	uint8_t h;
 	uint8_t s;
 	uint8_t v;
-} HueSatVal;
+} HSV;
 typedef struct TIMER {
 	int time;
 	int midnight;
@@ -41,8 +41,8 @@ typedef struct {
 } Wave;// #define HW 328 //WS_STD 0V2
 
 //#define HW 328 //pnp feeder HW
-#define HW 329 //pnp feeder HW
-// #define HW 2560 //final 2560 HW
+//#define HW 329 //pnp feeder HW
+ #define HW 2560 //final 2560 HW
 
 #if (HW == 328) //hardware definitions
 	#define LEDS 2
@@ -637,7 +637,7 @@ int a2iSigned(char *s)
 	return num;//*sign;
 }
 
-RGB hsvToRgb(HSV input)
+void hsvToRgb(HSV input, RGB *returnValue)
 {
 	RGB tempRGB;
 	unsigned char region, p, q, t;
@@ -648,7 +648,8 @@ RGB hsvToRgb(HSV input)
 		tempRGB.r = input.v;
 		tempRGB.g = input.v;
 		tempRGB.b = input.v;
-		return (tempRGB);
+		*returnValue = tempRGB;
+		return;
 	}
 
 	// converting to 16 bit to prevent overflow
@@ -696,7 +697,8 @@ RGB hsvToRgb(HSV input)
 		tempRGB.b = q;
 		break;
 	}
-	return tempRGB;
+	*returnValue = tempRGB;
+	//return tempRGB;
 }
 void clockUpdate()
 {
@@ -715,7 +717,8 @@ void updateLedOutputs()
 }
 void updateLEDsColorSingle (struct HSV inputHSV)
 {
-	RGB tempRGB = hsvToRgb(inputHSV);
+	RGB tempRGB;
+	hsvToRgb(inputHSV, &tempRGB);
 	int i = 0;
 	while (i <= LEDS)
 	{
@@ -726,11 +729,11 @@ void updateLEDsColorSingle (struct HSV inputHSV)
 	}
 	updateLedOutputs();
 }
-int patternRender(uint8_t ledNumber)
+uint8_t patternRender(RGB *input, int ledNumber)
 {
 	return(0);
 }
-HSV colorRandomHSV(uint8_t ledNumber)
+HSV colorRandomHSV(int ledNumber)
 {
 	HSV tempHSV;
 	tempHSV.s = 255;
@@ -739,7 +742,7 @@ HSV colorRandomHSV(uint8_t ledNumber)
 	return(tempHSV);
 
 }
-HSV colorSequenceRender(uint8_t ledNumber)
+HSV colorSequenceRender(int ledNumber)
 {
 	HSV tempHSV;
 	tempHSV.s = 255;
@@ -747,7 +750,7 @@ HSV colorSequenceRender(uint8_t ledNumber)
 	if (colorMode == COLOR_SELECT_CUSTOM) {tempHSV.h = leds[ledNumber].customColor;} 
 	return(tempHSV);
 }
-RGB colorValueRender(uint8_t intensity,  uint8_t ledNumber)
+void colorValueRender(uint8_t intensity,  int ledNumber, RGB *returnValue) 
 {
 	HSV tempHSV;
 	tempHSV.s = 255;
@@ -756,20 +759,23 @@ RGB colorValueRender(uint8_t intensity,  uint8_t ledNumber)
 	else if (colorMode == COLOR_BEHAVIOR_SEQUENCE	) {tempHSV = colorSequenceRender(ledNumber);}
 	else if (colorMode == COLOR_BEHAVIOR_RAINBOW	) {tempHSV.h = globalColorHSV[ledNumber].h + rainbowClock;}
 	else if (colorMode == COLOR_BEHAVIOR_RANDOM		) {tempHSV = colorRandomHSV(ledNumber);}
-	RGB tempRGB = hsvToRgb(tempHSV);
+	RGB tempRGB;
+	hsvToRgb(tempHSV, &tempRGB);
 	tempRGB.r = (tempRGB.r * intensity) / 255;
 	tempRGB.g = (tempRGB.g * intensity) / 255;
 	tempRGB.b = (tempRGB.b * intensity) / 255;
-	return(tempRGB);
+	*returnValue = tempRGB;
 }
 void updateLEDs ()
 {
 	clockUpdate();
 	RGB tempRGB;
 	int i = 0; 
+	uint8_t bright;
 	while (i <= LEDS)
 	{
-		tempRGB = colorValueRender(patternRender(i), i);
+		bright = patternRender(&tempRGB, i);
+		colorValueRender(bright, i, &tempRGB);
 		leds[i].r = (tempRGB.r * globalIntensity) / 255;
 		leds[i].g = (tempRGB.g * globalIntensity) / 255;
 		leds[i].b = (tempRGB.b * globalIntensity) / 255;
@@ -951,7 +957,7 @@ char* colorSelectContentSmall(uint8_t pos)
 	else if (pos == COLOR_SELECT_MENU_SIZE	)	{return("11"			);}
 	else										{return(errorMessage()	);}
 }
-RGB colorSelectMenu(uint8_t pos)//, uint8_t *colorSpace)
+void colorSelectMenu(uint8_t pos, RGB *returnValue)//, uint8_t *colorSpace)
 {
 	HSV tempHSV;
 	tempHSV.s = 255;
@@ -974,7 +980,10 @@ RGB colorSelectMenu(uint8_t pos)//, uint8_t *colorSpace)
 		else if (result == COLOR_SELECT_CUSTOM					) {tempHSV.h = customColorMenu(tempHSV.h);}
 		updateLEDsColorSingle(tempHSV);
 	}
-	return(hsvToRgb(tempHSV));
+	RGB tempRGB;
+	hsvToRgb(tempHSV, &tempRGB);
+	*returnValue = tempRGB;
+	/*return(hsvToRgb(tempHSV));*/
 }
 
 char* colorBehaviorMenuContent(uint8_t pos)
