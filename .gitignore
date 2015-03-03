@@ -52,3 +52,5 @@ Debug/RV_software.eep
 Visual Micro/.RV_software.vsarduino.h
 *.xml
 *.xml
+*.atsln
+RV_software/Visual Micro/.RV_software.vsarduino.h
