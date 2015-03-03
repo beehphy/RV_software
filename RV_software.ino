@@ -9,152 +9,98 @@
 //#include <string.h>
 
 typedef struct {
-	uint8_t customColor;
-	uint8_t r;
-	uint8_t g;
-	uint8_t b;
-	uint8_t	redPin;
-	uint8_t greenPin;
-	uint8_t bluePin;
-} Output;
+	byte customColor;
+	byte r;
+	byte g;
+	byte b;
+	byte redPin;
+	byte greenPin;
+	byte bluePin;
+}Output;
 typedef struct {
-	uint8_t g;
-	uint8_t r;
-	uint8_t b;
-} RGB;
+	byte g;
+	byte r;
+	byte b;
+}RGB;
 typedef struct {
-	uint8_t h;
-	uint8_t s;
-	uint8_t v;
-} HSV;
-typedef struct TIMER {
+	byte h;
+	byte s;
+	byte v;
+}HSV;
+typedef struct {
 	int time;
 	int midnight;
 	int rate;
-} Clock;
+}Clock;
 typedef struct {
 	int period;
 	int rise;
 	int width;
 	int fall;
 	int count;
-} Wave;// #define HW 328 //WS_STD 0V2
+}Wave;
+typedef struct {
+	int volts;
+	int subVolts;
+	}voltage;
 
-//#define HW 328 //pnp feeder HW
-//#define HW 329 //pnp feeder HW
- #define HW 2560 //final 2560 HW
+#define LEDS 4
+#define PIN_RED1 1
+#define PIN_GREEN1 2
+#define PIN_BLUE1 3
+#define PIN_RED2 4
+#define PIN_GREEN2 6
+#define PIN_BLUE2 7
+#define PIN_RED3 8
+#define PIN_GREEN3 9
+#define PIN_BLUE3 10
+#define PIN_RED4 11
+#define PIN_GREEN4 12
+#define PIN_BLUE4 13
+#define ENCODER_A A8
+#define ENCODER_B A9
+#define PUSH_BUTTON A10
+#define OLED_R A11
+#define SA0 A12 
+#define V12 A13
+	
+#define BOOL uint8_t
+#define OLED_ADDRESS    0x78
+#define OLED_READ       OLED_ADDRESS+1
+#define OLED_RUN        0xa4
+#define OLED_OFF        0xa5
+#define OLED_INVERSE    0xa7
+#define OLED_NORMAL     0xa6
+#define OLED_SLEEP      0xae
+#define OLED_ACTIVE     0xaf
+#define OLED_SCROLL_OFF 0x2e
+#define OLED_DATA       0
+#define COMMAND_COMMAND 0x80
+#define DATA_COMMAND    0x40
+#define CURSOR_COMMAND  0x00 // To make a blinking cursor, like data, but doesn't move column
+#define HIGH_COL_START_ADDR 0x10
+#define LOW_COL_START_ADDR  0x00
+#define SEGMENT_REMAP      0xA1
+#define DISPLAY_START_LINE 0x40
+#define SMALL_FONT_CHARACTER_W 5
+#define SMALL_FONT_CHARACTER_H 8
+#define H_PADDING 1
+#define COLUMN_OFFSET 4
+#define ASCII_OFFSET_LOW  0x20
+#define ASCII_OFFSET_HIGH 0x7e
 
-#if (HW == 328) //hardware definitions
-	#define LEDS 2
-	#define PIN_RED1 1
-	#define PIN_GREEN1 2
-	#define PIN_BLUE1 3
-	#define PIN_RED2 4
-	#define PIN_GREEN2 6
-	#define PIN_BLUE2 7
-	#define PUSH_BUTTON A3
-	#define ENCODER_A A2
-	#define ENCODER_B A1
-	#define OLED_R A0
-	#define SA0 A4
-	#define LCD_RESOLUTION 9616
+#define LCD_HEIGHT         32
+#define LCD_WIDTH          128
+#define MAX_ROWS           4
+#define MAX_COLS		   21
+#define MULTIPLEX_RATIO    0x1F
+#define COM_PIN_RATIO      0x12
+#define PRE_CHARGE_PERIOD  0xd2
+#define CLOCK_DIVIDE_RATIO 0xa0
+#define CONTRAST_LEVEL	   0x81
+#define VCOM_DETECT		   0x34
 
-#elif (HW == 329) 
-	#define LEDS 2
-	#define PIN_RED1 1
-	#define PIN_GREEN1 2
-	#define PIN_BLUE1 3
-	#define PIN_RED2 4
-	#define PIN_GREEN2 6
-	#define PIN_BLUE2 7
-	#define PUSH_BUTTON A2
-	#define ENCODER_A A0
-	#define ENCODER_B A1
-	#define OLED_R A3
-	#define SA0 A4
-	#define LCD_RESOLUTION 12864
-
-#elif (HW == 2560)
-	#define LEDS 4
-	#define PIN_RED1 1
-	#define PIN_GREEN1 2
-	#define PIN_BLUE1 3
-	#define PIN_RED2 4
-	#define PIN_GREEN2 6
-	#define PIN_BLUE2 7
-	#define PIN_RED3 8
-	#define PIN_GREEN3 9
-	#define PIN_BLUE3 10
-	#define PIN_RED4 11
-	#define PIN_GREEN4 12
-	#define PIN_BLUE4 13
-	#define ENCODER_A A8
-	#define ENCODER_B A9
-	#define PUSH_BUTTON A10
-	#define OLED_R A11
-	#define SA0 A12 
-	#define LCD_RESOLUTION 12832
-#endif
-#if(1) // Oled generic config defs, if'd to hide in IDE
-	#define BOOL uint8_t
-	#define OLED_ADDRESS    0x78
-	#define OLED_READ       OLED_ADDRESS+1
-	#define OLED_RUN        0xa4
-	#define OLED_OFF        0xa5
-	#define OLED_INVERSE    0xa7
-	#define OLED_NORMAL     0xa6
-	#define OLED_SLEEP      0xae
-	#define OLED_ACTIVE     0xaf
-	#define OLED_SCROLL_OFF 0x2e
-	#define OLED_DATA       0
-	#define COMMAND_COMMAND 0x80
-	#define DATA_COMMAND    0x40
-	#define CURSOR_COMMAND  0x00 // To make a blinking cursor, like data, but doesn't move column
-	#define HIGH_COL_START_ADDR 0x10
-	#define LOW_COL_START_ADDR  0x00
-	#define SEGMENT_REMAP      0xA1
-	#define DISPLAY_START_LINE 0x40
-	#define SMALL_FONT_CHARACTER_W 5
-	#define SMALL_FONT_CHARACTER_H 8
-	#define H_PADDING 1
-	#define ASCII_OFFSET_LOW  0x20
-	#define ASCII_OFFSET_HIGH 0x7e
-#endif
-#if (LCD_RESOLUTION == 12864)
-	#define LCD_HEIGHT         64
-	#define LCD_WIDTH          128
-	#define MAX_ROWS           8
-	#define MAX_COLS           21
-	#define MULTIPLEX_RATIO    0x3F
-	#define COM_PIN_RATIO      0x12
-	#define PRE_CHARGE_PERIOD  0xF1
-	#define CLOCK_DIVIDE_RATIO 0x80
-	#define CONTRAST_LEVEL	   0x80
-	#define VCOM_DETECT		   0x20
-#elif (LCD_RESOLUTION == 12832)
-	#define LCD_HEIGHT         32
-	#define LCD_WIDTH          128
-	#define MAX_ROWS           2
-	#define MAX_COLS		   21
-	#define MULTIPLEX_RATIO    0x1F
-	#define COM_PIN_RATIO      0x12
-	#define PRE_CHARGE_PERIOD  0xd2
-	#define CLOCK_DIVIDE_RATIO 0xa0
-	#define CONTRAST_LEVEL	   0x80
-	#define VCOM_DETECT		   0x34
-#elif (LCD_RESOLUTION == 9616)
-	#define LCD_HEIGHT         16
-	#define LCD_WIDTH          96
-	#define MAX_ROWS           2
-	#define MAX_COLS		   16
-	#define MULTIPLEX_RATIO    0x0F
-	#define COM_PIN_RATIO      0x02
-	#define PRE_CHARGE_PERIOD  0x22
-	#define CLOCK_DIVIDE_RATIO 0xF0
-	#define CONTRAST_LEVEL	   0x80
-	#define VCOM_DETECT		   0x49
-#endif
-static uint8_t PROGMEM font5x8[][5] = {// The 7-bit ASCII character set...
+static byte PROGMEM font5x8[][5] = {// The 7-bit ASCII character set...
 	{ 0x00, 0x00, 0x00, 0x00, 0x00 },  // 20 Space
 	{ 0x00, 0x00, 0x5f, 0x00, 0x00 },  // 21 !
 	{ 0x00, 0x07, 0x00, 0x07, 0x00 },  // 22 "
@@ -251,30 +197,36 @@ static uint8_t PROGMEM font5x8[][5] = {// The 7-bit ASCII character set...
 	{ 0x00, 0x41, 0x36, 0x08, 0x00 },  // 7d close curl
 	{ 0x10, 0x08, 0x08, 0x10, 0x08 }  // 7e ~
 };
-static uint8_t PROGMEM unknown5x8[5] = { 0x7f, 0x41, 0x41, 0x41, 0x7f }; // unknown char
-static uint8_t PROGMEM custom5x8[][5] = { // A place for custom characters
+static byte PROGMEM unknown5x8[5] = { 0x7f, 0x41, 0x41, 0x41, 0x7f }; // unknown char
+static byte PROGMEM custom5x8[][5] = { // A place for custom characters
 	{ 0x00, 0x00, 0x00, 0x00, 0x00 },  // Space
 	{ 0x7f, 0x41, 0x41, 0x41, 0x7f }   // ?
 };
 
+
 Output leds[LEDS]; //0 is temp
 HSV globalColorHSV[LEDS];
 RGB one;
-uint8_t globalIntensity;
-uint8_t mainMode;
-uint8_t patternMode;
-uint8_t colorMode;
-uint8_t speedMode;
-uint8_t brightnessMode;
+
+byte globalIntensity;
+byte mainMode;
+byte patternMode;
+byte colorMode;
+byte speedMode;
+byte brightnessMode;
 int rainbowClock;
-uint8_t   lcdRow      = 0;
-uint8_t   lcdColumn   = 0;
+
+byte   lcdRow      = 0;
+byte   lcdColumn   = 0;
+#define MIN(x, y) x < y ? x : y;
+//#define MAX(x, y) x > y ? x : y;
 Encoder knob(ENCODER_A, ENCODER_B);
 #define MENU_TIMEOUT 1000 //10 per socond
 #define DIAL_DETENT 2 //4 for blue type knob, 2 for green type knob
 #define MENU_TITLE 0
 #define MENU_START 1
 #define MENU_SIZE 255
+/*
 enum mainModes {
 	MAIN_TITLE			= MENU_TITLE,
 	MAIN_PATTERN		= MENU_START,
@@ -365,6 +317,7 @@ enum brightnessModes
 	BRIGHT_EXIT								,
 	BRIGHT_SIZE					= MENU_SIZE
 };
+*/
 
 void twiInit(void)
 {
@@ -378,33 +331,25 @@ void twiStart(void){
 }
 void twiStop(void)
 {
-#define TWI_STOP_DELAY 40
+#define TWI_STOP_DELAY 80
 	TWCR = ((1<<TWINT) | (1<<TWEN) | (1<<TWSTO)); //send stop condition
 //	for(uint8_t ct = 0; ct < 40; ct++); //wait a moment in case a start immediately follows
-	uint8_t cnt = 0;
+	byte cnt = 0;
 	while (cnt < TWI_STOP_DELAY)
 	{
 		cnt++;
 	}
 }
-void twiSend(uint8_t u8data)
+void twiSend(byte u8data)
 {
 	TWDR = u8data; //data to dat register
 	TWCR = ((1<<TWINT)|(1<<TWEN)); //set TWI byte ready to go
 	while ((TWCR & (1<<TWINT)) == 0); //wait for data to send
 }
-void twiSendCmd(uint8_t command)
+void twiSendCmd(byte command)
 {
 	twiSend(COMMAND_COMMAND);   // command command
 	twiSend(command);// command value
-}
-
-void lcdSendCommand(uint8_t command)
-{
-	twiStart();
-	twiSend(OLED_ADDRESS);
-	twiSendCmd(command);
-	twiStop();
 }
 void lcdInit(void)
 { 	
@@ -420,50 +365,43 @@ void lcdInit(void)
 		twiSendCmd(MULTIPLEX_RATIO); // set 16:0x0f 64:0x3f
 	twiSendCmd(0xd3);       // set display offset
 		twiSendCmd(0);      // not offset
-	twiSendCmd(DISPLAY_START_LINE); // set display start line
-#if (LCD_RESOLUTION == 12832)
 	twiSendCmd(0xad);       // set master configuration
 		twiSendCmd(0x8e);   // 
 	twiSendCmd(0xd8);       // Set Area Color Mode On/Off & Low Power Display Mode
 		twiSendCmd(0x05);   // 
+	twiSendCmd(SEGMENT_REMAP); // --set segment re-map 96 to 1
+	twiSendCmd(0xC8);       // --Set COM Output Scan Direction 16 to 1
+	twiSendCmd(0xda);       // --set com pins hardware configuration
+		twiSendCmd(COM_PIN_RATIO); // set ratio 128x64:0x12 96x16:0x02
 	twiSendCmd(0x91); //Set current drive pulse width of BANK0, Color A, Band C.
 		twiSendCmd(0x3f);
 		twiSendCmd(0x3f);
 		twiSendCmd(0x3f);
 		twiSendCmd(0x3f);
-#elif (LCD_RESOLUTION == 12864 || LCD_RESOLUTION == 9616)
-	twiSendCmd(0x8d);       // charge pump control
-		twiSendCmd(0x14);   // 0x14:Run 0x10:off
-#endif
-	twiSendCmd(OLED_NORMAL);
-	twiSendCmd(OLED_RUN);
-	twiSendCmd(SEGMENT_REMAP); // --set segment re-map 96 to 1
-	twiSendCmd(0xC8);       // --Set COM Output Scan Direction 16 to 1
-	twiSendCmd(0xda);       // --set com pins hardware configuration
-		twiSendCmd(COM_PIN_RATIO); // set ratio 128x64:0x12 96x16:0x02
 	twiSendCmd(0x81);       // --set contrast control register
 		twiSendCmd(CONTRAST_LEVEL);
 	twiSendCmd(0xd9);       // --set pre-charge period
 		twiSendCmd(PRE_CHARGE_PERIOD);   // set ratio 128x64:0xf1 96x16:0x22
+	twiSendCmd(DISPLAY_START_LINE); // set display start line
 	twiSendCmd(0xdb);       // --set vcomh
 		twiSendCmd(VCOM_DETECT); // --0.77vref
 	twiSendCmd(0x20);       // Set Memory Addressing Mode
 		twiSendCmd(0x00);   // 00, Horizontal Addressing Mode; 01, Vertical Addressing Mode; 10, Page Addressing Mode (RESET); 11, Invalid
+	twiSendCmd(OLED_NORMAL);
+	twiSendCmd(OLED_RUN);
 	twiSendCmd(OLED_ACTIVE); // --turn on oled panel
 	
 	twiStop();
 }
-#define MIN(x, y) x < y ? x : y;
-//#define MAX(x, y) x > y ? x : y;
-void lcdSetPos(uint8_t row, uint8_t column)
+void lcdSetPos(byte row, byte column)
 {
 	row = MIN(row, MAX_ROWS);
-	column = MIN(column, LCD_WIDTH);
-	
+	column = MIN(column, LCD_WIDTH + COLUMN_OFFSET);
+	column += COLUMN_OFFSET;
 	twiStart();
 	twiSend(OLED_ADDRESS);
 	twiSendCmd(0xb0+row);
-	twiSendCmd(((column&0xf0)>>4) | HIGH_COL_START_ADDR); // high column start address or'd 0x10
+	twiSendCmd((column>>4) | HIGH_COL_START_ADDR); // high column start address or'd 0x10
 	twiSendCmd((column&0x0f) | LOW_COL_START_ADDR);       // low column start address
 	twiStop();
 	
@@ -472,15 +410,8 @@ void lcdSetPos(uint8_t row, uint8_t column)
 }
 void lcdFill(char fillData)
 {
-	uint8_t m,n;
+	byte m,n;
 	for(m = 0; m <= MAX_ROWS; m++) {
-		//twiStart();
-		//twiSend(OLED_ADDRESS);
-		//twiSendCmd(0xb0 + m);            // page0-page1
-		//twiSendCmd(HIGH_COL_START_ADDR); // high column start address
-		//twiSendCmd(LOW_COL_START_ADDR);  // low column start address
-		//twiStop();
-		
 		lcdSetPos(m, 0);
 		
 		twiStart();
@@ -492,7 +423,7 @@ void lcdFill(char fillData)
 		twiStop();
 	}
 }
-void lcdClearLine(uint8_t line)
+void lcdClearLine(byte line)
 {
 	if (line >= MAX_ROWS) return;
 	lcdSetPos(line, 0);		
@@ -500,7 +431,7 @@ void lcdClearLine(uint8_t line)
 	twiSend(OLED_ADDRESS);
 	twiSend(DATA_COMMAND);
 // 	for(int n = 0; n < LCD_WIDTH; n++) {
-	uint8_t n = 0;
+	byte n = 0;
 	while (n < LCD_WIDTH)
 	{
 		twiSend(0);
@@ -514,7 +445,7 @@ void lcdClearScreen()
 	lcdFill(0);
 	lcdSetPos(0, 0);
 }
-void lcdWriteChar(uint8_t data)
+void lcdWriteChar(byte data)
 {	
 // 	twiStart(); // maybe move these later to lcdprint, etc.
 // 	twiSend(OLED_ADDRESS); // maybe move these later to lcdprint, etc.
@@ -523,7 +454,7 @@ void lcdWriteChar(uint8_t data)
 	if (data >= ASCII_OFFSET_LOW && data <= ASCII_OFFSET_HIGH) { //is the data within the charecter set?
 		data -= ASCII_OFFSET_LOW; // offsets byte by 0x20, to beginning of ascii codes in memory
 		//for (uint8_t i = 0; i < SMALL_FONT_CHARACTER_W; i++) {
-		uint8_t i = 0;
+		byte i = 0;
 		while (i < SMALL_FONT_CHARACTER_W)
 		{
 			twiSend(pgm_read_byte(&font5x8[data][i])); // cycle through and send 5 bytes of char
@@ -539,7 +470,7 @@ void lcdWriteChar(uint8_t data)
 	}
 	else { // send space for unknown char
 		//for (uint8_t i = 0; i < SMALL_FONT_CHARACTER_W; i++) {
-		uint8_t i = 0;
+		byte i = 0;
 		while (i < SMALL_FONT_CHARACTER_W)
 		{
 				twiSend(pgm_read_byte(&unknown5x8[i])); // cycle through and send 5 bytes of the unknown char
@@ -557,8 +488,8 @@ void lcdPrint(char *buffer)
 	twiSend(OLED_ADDRESS);
 	twiSend(DATA_COMMAND);
 	
-	uint8_t i = 0;
-	uint8_t len = strlen(buffer);
+	byte i = 0;
+	byte len = strlen(buffer);
 	
 	while (i < len) { 
 		lcdWriteChar(buffer[i]); 
@@ -583,7 +514,58 @@ void lcdPrintln(char *buffer)
 	lcdPrint(buffer);
 	lcdWriteChar('\n');
 }
+void displayBattery (byte line)
+{	
+	//measure and display voltage "Bat: xx.xxV"
+	char temp[10];
+	lcdClearLine(line);
+	lcdSetPos(line, 0);
+	lcdPrint("Bat: ");
+	long vCapture = (analogRead(V12) * 79) / 20 + 63;
+	lcdPrint(itoa(vCapture / 100,temp,10));
+	lcdPrint(".");
+	int vcapsv = vCapture % 100;
+	if (vcapsv < 10) {lcdPrint("0");}
+	lcdPrint(itoa(vcapsv,temp,10));
+	lcdPrint("V");
 	
+	//Deep cycle Lead acid battery guage
+	//vCapture 1280 (12.8v)or greater is full
+	//vCapture 950 (9.5v) or lower is empty
+	lcdSetPos(line, 72);
+	vCapture = (vCapture - 950) * 19 / 120; // offset, and scale, result is columns of full battery bars 0-50;
+	if (vCapture < 0) {vCapture = 0;} // limit to end of of battery
+	if (vCapture > 51) {vCapture = 51;} // limit to end of of battery
+	twiStart();
+	twiSend(OLED_ADDRESS);
+	twiSend(DATA_COMMAND); ///pixel data stream
+	twiSend(0x7e); //bat contact
+	twiSend(0x42); //contact sides
+	twiSend(0x42); //contact sides
+	twiSend(0xFF); //top edge
+	byte i = 0; //start display sequence count
+	while (vCapture < 51) {
+		twiSend(0x81); //empty bars
+		vCapture++; //count up to full battery
+		i++; //keep track of display bars
+	}
+	while (i < 52) { // this should result in 1 bars at the end for end cap
+		twiSend(0xFF); //full bars
+		i++;
+	}
+	twiStop();
+}	
+/*
+int a2i(char *s)
+{
+	int num=0;
+	while(*s)
+	{
+		num=((*s)-'0')+num*10;
+		s++;
+	}
+	return num;
+}
 
 
 // Button routines
@@ -598,28 +580,19 @@ void buttonDebounce()
 	}
 }
 // Display and Menu routines
-void showMenu  (char* (*useMenu)(uint8_t), uint8_t pos)
+void showMenu  (char* (*useMenu)(byte), byte pos)
 {
 	lcdClearLine(1);
 	lcdSetPos(1, 0);
  	lcdPrint(useMenu(pos));
 }
-void showTitle (char* (*useMenu)(uint8_t), uint8_t pos)
+void showTitle (char* (*useMenu)(byte), byte pos)
 {
 	lcdClearLine(0);
 	lcdSetPos(0, 0);
 	lcdPrint(useMenu(pos));
 }
-int a2i(char *s)
-{
-	int num=0;
-	while(*s)
-	{
-		num=((*s)-'0')+num*10;
-		s++;
-	}
-	return num;
-}
+/ *
 int a2iSigned(char *s)
 {
 	int sign = 1;
@@ -634,9 +607,8 @@ int a2iSigned(char *s)
 		num=((*s)-'0')+num*10;
 		s++;
 	}
-	return num;//*sign;
-}
-
+	return(num*sign);
+}* /
 void hsvToRgb(HSV input, RGB *returnValue)
 {
 	RGB tempRGB;
@@ -700,6 +672,9 @@ void hsvToRgb(HSV input, RGB *returnValue)
 	*returnValue = tempRGB;
 	//return tempRGB;
 }
+/ *
+
+
 void clockUpdate()
 {
 	rainbowClock += speedMode;//
@@ -783,8 +758,9 @@ void updateLEDs ()
 	}
 	updateLedOutputs();
 }
+* /
 
-uint8_t runMenu(char* (*useMenu)(uint8_t), uint8_t menuPos)
+byte runMenu(char* (*useMenu)(byte), byte menuPos)
 {
 	buttonDebounce();
 	char* menuSizePtr = useMenu(MENU_SIZE); 
@@ -819,7 +795,7 @@ uint8_t runMenu(char* (*useMenu)(uint8_t), uint8_t menuPos)
 	}
 	return(MENU_TITLE);  //result = timeout
 }
-uint8_t valueMenu (uint8_t *startingValue, int increment, int minimum, int maximum, uint8_t rolloverBOOL)
+byte valueMenu (byte *startingValue, int increment, int minimum, int maximum, byte rolloverBOOL)
 {
 	char tempChar[5]; //needed for itoa
 	int tempINT = int(*startingValue);
@@ -854,7 +830,7 @@ uint8_t valueMenu (uint8_t *startingValue, int increment, int minimum, int maxim
 			lcdPrint(itoa(tempINT, tempChar, 10));
 			lcdPrint("     ");
 			tempHSV.h = tempINT;	
-			updateLEDsColorSingle(tempHSV);
+			//updateLEDsColorSingle(tempHSV);
 			
 		}
 		else if(newKnob >= oldKnob+DIAL_DETENT)
@@ -876,22 +852,22 @@ uint8_t valueMenu (uint8_t *startingValue, int increment, int minimum, int maxim
 			lcdPrint(itoa(tempINT, tempChar, 10));
 			lcdPrint("     ");
 			tempHSV.h = tempINT;
-			updateLEDsColorSingle(tempHSV);	
+			//updateLEDsColorSingle(tempHSV);	
 		}
 		if (digitalRead(PUSH_BUTTON)) //was pressed return current selection
 		{
 			buttonDebounce(); 
-			//*startingValue = 
+			// *startingValue = 
 			return(1);
 		}  
 	}
-	*startingValue = uint8_t(tempINT);  //result = timeout no change
+	*startingValue = byte(tempINT);  //result = timeout no change
 };
 char* errorMessage () {return("*Error*");}  //reduces memory, removes error string info from every menu
 char* exitMessage () {return("Nothing and Save");}  //reduces memory, removes error string info from every menu
 
 //pattern  menu	
-char* patternMenuContent(uint8_t pos)
+char* patternMenuContent(byte pos)
 {
 	if 		(pos ==	PATTERN_TITLE			)		{return(	"Pattern Menu:"		);}
 	else if (pos == PATTERN_SOLID			)		{return(	"Static"			);}
@@ -904,7 +880,7 @@ char* patternMenuContent(uint8_t pos)
 }
 void patternMenu()
 {
-	uint8_t	result = patternMode;
+	byte	result = patternMode;
 	while (result != PATTERN_EXIT && result != MENU_TITLE)
 	{
   		result = runMenu(patternMenuContent, result);
@@ -923,7 +899,7 @@ int customColorMenu (int startHue) //pick a color hue with the dial
 	int result = valueMenu(&tempHSV.h,3,0,255,1);
 }
 
-char* colorSelectContent(uint8_t pos)
+char* colorSelectContent(byte pos)
 {
 	if 		(pos == COLOR_SELECT_TITLE				)	{return(	"Choose a Color:"		);}
 	else if (pos == COLOR_SELECT_RED				)	{return(	"Red"					);}
@@ -941,7 +917,7 @@ char* colorSelectContent(uint8_t pos)
 	else if (pos == COLOR_SELECT_MENU_SIZE			)	{return(	"11"					);}
 	else												{return(	errorMessage()			);}
 }
-char* colorSelectContentSmall(uint8_t pos)
+char* colorSelectContentSmall(byte pos)
 {
 	if		(pos == COLOR_SELECT_RED		)	{return("Red"			);}
 	else if (pos == COLOR_SELECT_ORANGE		)	{return("Org"			);}
@@ -957,13 +933,13 @@ char* colorSelectContentSmall(uint8_t pos)
 	else if (pos == COLOR_SELECT_MENU_SIZE	)	{return("11"			);}
 	else										{return(errorMessage()	);}
 }
-void colorSelectMenu(uint8_t pos, RGB *returnValue)//, uint8_t *colorSpace)
+void colorSelectMenu(byte pos, RGB *returnValue)//, uint8_t *colorSpace)
 {
 	HSV tempHSV;
 	tempHSV.s = 255;
 	tempHSV.v = 127;
-	tempHSV.h = 0;//*colorSpace;
-	uint8_t	result = pos;
+	tempHSV.h = 0;// *colorSpace;
+	byte	result = pos;
 	while (result != MAIN_EXIT && result != MENU_TITLE)
 	{
 		result = runMenu(colorSelectContent, result);
@@ -978,15 +954,15 @@ void colorSelectMenu(uint8_t pos, RGB *returnValue)//, uint8_t *colorSpace)
 		else if (result == COLOR_SELECT_PINK					) {tempHSV.h = 234;}
 		else if (result == COLOR_SELECT_WHITE					) {tempHSV.v = 255; tempHSV.s = 0;}
 		else if (result == COLOR_SELECT_CUSTOM					) {tempHSV.h = customColorMenu(tempHSV.h);}
-		updateLEDsColorSingle(tempHSV);
+		//updateLEDsColorSingle(tempHSV);
 	}
 	RGB tempRGB;
 	hsvToRgb(tempHSV, &tempRGB);
 	*returnValue = tempRGB;
-	/*return(hsvToRgb(tempHSV));*/
+	/ *return(hsvToRgb(tempHSV));* /
 }
 
-char* colorBehaviorMenuContent(uint8_t pos)
+char* colorBehaviorMenuContent(byte pos)
 {
 	if 		(pos == COLOR_BEHAVIOR_TITLE			)	{return(	"Color Behavior:"		);}
 	else if (pos == COLOR_BEHAVIOR_SOLID			)	{return(	"Static"				);}
@@ -998,7 +974,7 @@ char* colorBehaviorMenuContent(uint8_t pos)
 }
 void colorBehaviorMenu()
 {
-	uint8_t	result = colorMode;
+	byte	result = colorMode;
 	while (result != MAIN_EXIT && result != MENU_TITLE)
 	{
 		result = runMenu(colorBehaviorMenuContent, result);
@@ -1011,7 +987,7 @@ void colorBehaviorMenu()
 }
 
 // brightness routines
-char* brightnessMenuContent(uint8_t pos)
+char* brightnessMenuContent(byte pos)
 {
 	if 		(pos == BRIGHT_TITLE	)	{return("Brightness Menu:"		);}
 	else if (pos == BRIGHT_1		)	{return("Brightness 100%"		);}
@@ -1028,7 +1004,7 @@ char* brightnessMenuContent(uint8_t pos)
 }
 void brightnessMenu()
 {
-	uint8_t	result = brightnessMode;
+	byte	result = brightnessMode;
 	while (result != BRIGHT_EXIT && result != MENU_TITLE)
 	{
 		result = runMenu(brightnessMenuContent, result);
@@ -1044,7 +1020,7 @@ void brightnessMenu()
 	}
 }
 
-char* speedMenuContent(uint8_t pos)
+char* speedMenuContent(byte pos)
 {
 	if 		(pos == SPEED_TITLE	)	{return("How Active?"			);}
 	else if (pos == SPEED_1		)	{return("Mellow"				);}
@@ -1057,7 +1033,7 @@ char* speedMenuContent(uint8_t pos)
 }
 void speedMenu()
 {
-	uint8_t	result = brightnessMode;
+	byte	result = brightnessMode;
 	while (result != BRIGHT_EXIT && result != MENU_TITLE)
 	{
 		result = runMenu(brightnessMenuContent, result);
@@ -1067,7 +1043,7 @@ void speedMenu()
 }
 
 //mainmenu
-char* mainMenuContent(uint8_t pos)
+char* mainMenuContent(byte pos)
 {
 	if 		(pos ==	MAIN_TITLE			)		{return(	"Lets change the"	);}
 	else if (pos == MAIN_PATTERN		)		{return(	"Patterns"			);}
@@ -1079,10 +1055,10 @@ char* mainMenuContent(uint8_t pos)
 }
 void mainMenu()
 {
-	uint8_t	result = mainMode;
+	byte	result = mainMode;
 	while (result != MAIN_EXIT && result != MENU_TITLE)
 	{
-		result = runMenu(mainMenuContent, result);
+		//result = runMenu(mainMenuContent, result);
 		if		(result == MAIN_PATTERN		) {patternMenu();		}
 		else if (result == MAIN_PATTERN		) {colorBehaviorMenu();		}
 		else if (result == MAIN_COLOR		) {speedMenu();		}
@@ -1091,11 +1067,11 @@ void mainMenu()
 		//else {}
 	}
 }
+*/
 
 void setup ()
 {
-	// init
-	//leds[0] is used for a temp working location
+
 	leds[1].redPin	=	PIN_RED1;
 	leds[1].greenPin	= PIN_GREEN1;
 	leds[1].bluePin	=  PIN_BLUE1;
@@ -1108,9 +1084,7 @@ void setup ()
 	pinMode(leds[2].redPin,OUTPUT);
 	pinMode(leds[2].greenPin,OUTPUT);
 	pinMode(leds[2].bluePin,OUTPUT);
-	pinMode(PUSH_BUTTON, INPUT_PULLUP);
-	pinMode(OLED_R, OUTPUT);
-	digitalWrite(OLED_R, HIGH);
+	;
   
 #if (LEDS == 4)
 	leds[3].redPin	=	PIN_RED3;
@@ -1130,17 +1104,25 @@ void setup ()
   mainMode = MENU_START;
   patternMode = MENU_START;
   colorMode = MENU_START;
-  lcdInit();
-  lcdClearScreen();
-  lcdSetPos(0,0);
-  lcdPrintln("Wes's RV Light Show");
-  lcdPrint("  By Jopel Designs");
-  delay(2500);
-  lcdClearScreen();
+  
+  pinMode(PUSH_BUTTON, INPUT_PULLUP);
+	pinMode(OLED_R, OUTPUT);
+	digitalWrite(OLED_R, HIGH);
+	lcdInit();
+    lcdClearScreen();
+    lcdSetPos(0,0);
+    lcdPrintln("Wes's RV Light Show");
+    lcdSetPos(2,33);
+    lcdPrint("By Jopel Designs");
 }
 void loop ()
 {
-	if (digitalRead(PUSH_BUTTON) == 0) {mainMenu(); buttonDebounce();  lcdClearScreen(); } 
-	updateLEDs();
-	delay(30);
+	lcdClearLine(1);
+	lcdSetPos(1,0);
+	if (digitalRead(PUSH_BUTTON) == 0) {lcdPrint("click");}
+	displayBattery(3);
+	delay(100);	//mainMenu(); buttonDebounce();  lcdClearScreen(); } 
+	//updateLEDs();
+  
+  
 }
