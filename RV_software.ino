@@ -43,63 +43,62 @@ typedef struct {
 	int volts;
 	int subVolts;
 	}voltage;
-
-#define LEDS 4
-#define PIN_RED1 1
-#define PIN_GREEN1 2
-#define PIN_BLUE1 3
-#define PIN_RED2 4
-#define PIN_GREEN2 6
-#define PIN_BLUE2 7
-#define PIN_RED3 8
-#define PIN_GREEN3 9
-#define PIN_BLUE3 10
-#define PIN_RED4 11
-#define PIN_GREEN4 12
-#define PIN_BLUE4 13
-#define ENCODER_A A8
-#define ENCODER_B A9
-#define PUSH_BUTTON A10
-#define OLED_R A11
-#define SA0 A12 
-#define V12 A13
-	
 #define BOOL uint8_t
-#define OLED_ADDRESS    0x78
-#define OLED_READ       OLED_ADDRESS+1
-#define OLED_RUN        0xa4
-#define OLED_OFF        0xa5
-#define OLED_INVERSE    0xa7
-#define OLED_NORMAL     0xa6
-#define OLED_SLEEP      0xae
-#define OLED_ACTIVE     0xaf
-#define OLED_SCROLL_OFF 0x2e
-#define OLED_DATA       0
-#define COMMAND_COMMAND 0x80
-#define DATA_COMMAND    0x40
-#define CURSOR_COMMAND  0x00 // To make a blinking cursor, like data, but doesn't move column
+
+//Hardware defines ***********************************************************************
+#define LEDS				4
+#define PIN_RED1			1	//LED OUTPUT
+#define PIN_GREEN1			2	//LED OUTPUT
+#define PIN_BLUE1			3	//LED OUTPUT
+#define PIN_RED2			4	//LED OUTPUT
+#define PIN_GREEN2			6	//LED OUTPUT
+#define PIN_BLUE2			7	//LED OUTPUT
+#define PIN_RED3			8	//LED OUTPUT
+#define PIN_GREEN3			9	//LED OUTPUT
+#define PIN_BLUE3			10	//LED OUTPUT
+#define PIN_RED4			11	//LED OUTPUT
+#define PIN_GREEN4			12	//LED OUTPUT
+#define PIN_BLUE4			13	//LED OUTPUT
+#define ENCODER_A			A8	
+#define ENCODER_B			A9
+#define PUSH_BUTTON			A10
+#define OLED_R				A11
+#define SA0					A12 
+#define V12					A13 //battery sense
+	
+//oled stuff ***********************************************************************
+#define OLED_ADDRESS		0x78
+#define OLED_RUN			0xa4
+#define OLED_OFF			0xa5
+#define OLED_INVERSE		0xa7
+#define OLED_NORMAL			0xa6
+#define OLED_SLEEP			0xae
+#define OLED_ACTIVE			0xaf
+#define OLED_SCROLL_OFF		0x2e
+#define COMMAND_COMMAND		0x80
+#define DATA_COMMAND		0x40
+#define CURSOR_COMMAND		0x00 // To make a blinking cursor, like data, but doesn't move column
 #define HIGH_COL_START_ADDR 0x10
 #define LOW_COL_START_ADDR  0x00
-#define SEGMENT_REMAP      0xA1
-#define DISPLAY_START_LINE 0x40
+#define SEGMENT_REMAP		0xA1
+#define DISPLAY_START_LINE	0x40
+#define MULTIPLEX_RATIO		0x1F
+#define COM_PIN_RATIO		0x12
+#define PRE_CHARGE_PERIOD	0xd2
+#define CLOCK_DIVIDE_RATIO	0xa0
+#define CONTRAST_LEVEL		0x81
+#define VCOM_DETECT			0x34
+
+#define LCD_HEIGHT			32
+#define LCD_WIDTH			128
+#define MAX_ROWS			4
+#define MAX_COLS			21
 #define SMALL_FONT_CHARACTER_W 5
 #define SMALL_FONT_CHARACTER_H 8
 #define H_PADDING 1
 #define COLUMN_OFFSET 4
 #define ASCII_OFFSET_LOW  0x20
 #define ASCII_OFFSET_HIGH 0x7e
-
-#define LCD_HEIGHT         32
-#define LCD_WIDTH          128
-#define MAX_ROWS           4
-#define MAX_COLS		   21
-#define MULTIPLEX_RATIO    0x1F
-#define COM_PIN_RATIO      0x12
-#define PRE_CHARGE_PERIOD  0xd2
-#define CLOCK_DIVIDE_RATIO 0xa0
-#define CONTRAST_LEVEL	   0x81
-#define VCOM_DETECT		   0x34
-
 static byte PROGMEM font5x8[][5] = {// The 7-bit ASCII character set...
 	{ 0x00, 0x00, 0x00, 0x00, 0x00 },  // 20 Space
 	{ 0x00, 0x00, 0x5f, 0x00, 0x00 },  // 21 !
@@ -203,121 +202,10 @@ static byte PROGMEM custom5x8[][5] = { // A place for custom characters
 	{ 0x7f, 0x41, 0x41, 0x41, 0x7f }   // ?
 };
 
-
-Output leds[LEDS]; //0 is temp
-HSV globalColorHSV[LEDS];
-RGB one;
-
-byte globalIntensity;
-byte mainMode;
-byte patternMode;
-byte colorMode;
-byte speedMode;
-byte brightnessMode;
-int rainbowClock;
-
 byte   lcdRow      = 0;
 byte   lcdColumn   = 0;
 #define MIN(x, y) x < y ? x : y;
 //#define MAX(x, y) x > y ? x : y;
-Encoder knob(ENCODER_A, ENCODER_B);
-#define MENU_TIMEOUT 1000 //10 per socond
-#define DIAL_DETENT 2 //4 for blue type knob, 2 for green type knob
-#define MENU_TITLE 0
-#define MENU_START 1
-#define MENU_SIZE 255
-/*
-enum mainModes {
-	MAIN_TITLE			= MENU_TITLE,
-	MAIN_PATTERN		= MENU_START,
-	MAIN_COLOR						,
-	MAIN_BRIGHTNESS					,
-	MAIN_EXIT						,
-	MAIN_SIZE			= MENU_SIZE
-};
-enum patternModes {
-	PATTERN_TITLE			= MENU_TITLE ,
-	PATTERN_SOLID			= MENU_START ,
-	PATTERN_FADES						 ,
-	PATTERN_PULSE						 ,
-	PATTERN_HEARTBEAT					 ,
-	PATTERN_EXIT						 ,
-	PATTERN_SIZE			= MENU_SIZE
-	};
-enum speedModes
-{
-	SPEED_TITLE				= MENU_TITLE,
-	SPEED_1					= MENU_START,
-	SPEED_2					= 2			,
-	SPEED_3					= 5			,
-	SPEED_4					= 9			,
-	SPEED_5					= 13		,
-	SPEED_EXIT							,
-	SPEED_SIZE					= MENU_SIZE
-};
-enum colorModes
-{
-	COLOR_TITLE						= MENU_TITLE,
-	COLOR_BEHAVIOR					= MENU_START,
-	COLOR_GLOBAL1								,
-	COLOR_GLOBAL2								,
-	COLOR_GLOBAL3								,
-	COLOR_GLOBAL4								,
-	COLOR_EXIT									,
-	COLOR_MENU_SIZE					= MENU_SIZE
-};
-enum colorGlobalModes
-{
-	COLOR_GLOBAL_TITLE						= MENU_TITLE,
-	COLOR_GLOBAL_SOLID						= MENU_START,
-	COLOR_GLOBAL_SEQUENCE								,
-	COLOR_GLOBAL_RAINBOW								,
-	COLOR_GLOBAL_RANDOM									,
-	COLOR_GLOBAL_EXIT									,
-	COLOR_GLOBAL_MENU_SIZE					= MENU_SIZE
-};
-enum colorBehaviorModes
-{
-	COLOR_BEHAVIOR_TITLE					= MENU_TITLE,
-	COLOR_BEHAVIOR_SOLID					= MENU_START,
-	COLOR_BEHAVIOR_SEQUENCE								,
-	COLOR_BEHAVIOR_RAINBOW								,
-	COLOR_BEHAVIOR_RANDOM								,
-	COLOR_BEHAVIOR_EXIT									,
-	COLOR_BEHAVIOR_MENU_SIZE				= MENU_SIZE
-};
-enum colorSelectModes {
-	COLOR_SELECT_TITLE				= MENU_TITLE,
-	COLOR_SELECT_RED				= MENU_START,
-	COLOR_SELECT_ORANGE							,
-	COLOR_SELECT_YELLOW							,
-	COLOR_SELECT_GREEN							,
-	COLOR_SELECT_TEAL							,
-	COLOR_SELECT_BLUE							,
-	COLOR_SELECT_SKY							,
-	COLOR_SELECT_VIOLET							,
-	COLOR_SELECT_PINK							,
-	COLOR_SELECT_WHITE							,
-	COLOR_SELECT_CUSTOM							,
-	COLOR_SELECT_RAINBOW_ROLL					,
-	COLOR_SELECT_EXIT							,
-	COLOR_SELECT_MENU_SIZE			= MENU_SIZE
-};
-enum brightnessModes
-{
-	BRIGHT_TITLE				= MENU_TITLE,
-	BRIGHT_1					= MENU_START,
-	BRIGHT_2								,
-	BRIGHT_3								,
-	BRIGHT_4								,
-	BRIGHT_5								,
-	BRIGHT_6								,
-	BRIGHT_7								,
-	BRIGHT_8								,
-	BRIGHT_EXIT								,
-	BRIGHT_SIZE					= MENU_SIZE
-};
-*/
 
 void twiInit(void)
 {
@@ -555,6 +443,119 @@ void displayBattery (byte line)
 	}
 	twiStop();
 }	
+
+//Menu stuff ***********************************************************************
+Encoder knob(ENCODER_A, ENCODER_B);
+#define MENU_TIMEOUT 1000 //10 per socond
+#define DIAL_DETENT 2 //4 for blue type knob, 2 for green type knob
+#define MENU_TITLE 0
+#define MENU_START 1
+#define MENU_SIZE 255
+
+Output leds[LEDS]; //0 is temp
+HSV globalColorHSV[LEDS];
+RGB one;
+
+byte globalIntensity;
+byte mainMode;
+byte patternMode;
+byte colorMode;
+byte speedMode;
+byte brightnessMode;
+int rainbowClock;
+
+/*
+enum mainModes {
+	MAIN_TITLE			= MENU_TITLE,
+	MAIN_PATTERN		= MENU_START,
+	MAIN_COLOR						,
+	MAIN_BRIGHTNESS					,
+	MAIN_EXIT						,
+	MAIN_SIZE			= MENU_SIZE
+};
+enum patternModes {
+	PATTERN_TITLE			= MENU_TITLE ,
+	PATTERN_SOLID			= MENU_START ,
+	PATTERN_FADES						 ,
+	PATTERN_PULSE						 ,
+	PATTERN_HEARTBEAT					 ,
+	PATTERN_EXIT						 ,
+	PATTERN_SIZE			= MENU_SIZE
+	};
+enum speedModes
+{
+	SPEED_TITLE				= MENU_TITLE,
+	SPEED_1					= MENU_START,
+	SPEED_2					= 2			,
+	SPEED_3					= 5			,
+	SPEED_4					= 9			,
+	SPEED_5					= 13		,
+	SPEED_EXIT							,
+	SPEED_SIZE					= MENU_SIZE
+};
+enum colorModes
+{
+	COLOR_TITLE						= MENU_TITLE,
+	COLOR_BEHAVIOR					= MENU_START,
+	COLOR_GLOBAL1								,
+	COLOR_GLOBAL2								,
+	COLOR_GLOBAL3								,
+	COLOR_GLOBAL4								,
+	COLOR_EXIT									,
+	COLOR_MENU_SIZE					= MENU_SIZE
+};
+enum colorGlobalModes
+{
+	COLOR_GLOBAL_TITLE						= MENU_TITLE,
+	COLOR_GLOBAL_SOLID						= MENU_START,
+	COLOR_GLOBAL_SEQUENCE								,
+	COLOR_GLOBAL_RAINBOW								,
+	COLOR_GLOBAL_RANDOM									,
+	COLOR_GLOBAL_EXIT									,
+	COLOR_GLOBAL_MENU_SIZE					= MENU_SIZE
+};
+enum colorBehaviorModes
+{
+	COLOR_BEHAVIOR_TITLE					= MENU_TITLE,
+	COLOR_BEHAVIOR_SOLID					= MENU_START,
+	COLOR_BEHAVIOR_SEQUENCE								,
+	COLOR_BEHAVIOR_RAINBOW								,
+	COLOR_BEHAVIOR_RANDOM								,
+	COLOR_BEHAVIOR_EXIT									,
+	COLOR_BEHAVIOR_MENU_SIZE				= MENU_SIZE
+};
+enum colorSelectModes {
+	COLOR_SELECT_TITLE				= MENU_TITLE,
+	COLOR_SELECT_RED				= MENU_START,
+	COLOR_SELECT_ORANGE							,
+	COLOR_SELECT_YELLOW							,
+	COLOR_SELECT_GREEN							,
+	COLOR_SELECT_TEAL							,
+	COLOR_SELECT_BLUE							,
+	COLOR_SELECT_SKY							,
+	COLOR_SELECT_VIOLET							,
+	COLOR_SELECT_PINK							,
+	COLOR_SELECT_WHITE							,
+	COLOR_SELECT_CUSTOM							,
+	COLOR_SELECT_RAINBOW_ROLL					,
+	COLOR_SELECT_EXIT							,
+	COLOR_SELECT_MENU_SIZE			= MENU_SIZE
+};
+enum brightnessModes
+{
+	BRIGHT_TITLE				= MENU_TITLE,
+	BRIGHT_1					= MENU_START,
+	BRIGHT_2								,
+	BRIGHT_3								,
+	BRIGHT_4								,
+	BRIGHT_5								,
+	BRIGHT_6								,
+	BRIGHT_7								,
+	BRIGHT_8								,
+	BRIGHT_EXIT								,
+	BRIGHT_SIZE					= MENU_SIZE
+};
+*/
 /*
 int a2i(char *s)
 {
@@ -1105,7 +1106,7 @@ void setup ()
   patternMode = MENU_START;
   colorMode = MENU_START;
   
-  pinMode(PUSH_BUTTON, INPUT_PULLUP);
+	pinMode(PUSH_BUTTON, INPUT_PULLUP);
 	pinMode(OLED_R, OUTPUT);
 	digitalWrite(OLED_R, HIGH);
 	lcdInit();
