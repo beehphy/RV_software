@@ -25,6 +25,7 @@ typedef struct {
 	byte h;
 	byte s;
 	byte v;
+	byte hsvMode;
 } HSV;
 typedef struct {
 	int time;
@@ -449,23 +450,25 @@ Encoder knob(ENCODER_A, ENCODER_B);
 #define MENU_START 1
 #define MENU_SIZE 255
 
-Output leds[LEDS]; //0 is temp
+Output leds[LEDS]; 
+byte globalIntensity = 0x40; // should be eeprom loads
+byte mainMode = MENU_START;
+byte patternMode  = MENU_START;
+byte colorMode = MENU_START;
+byte colorBehaviorMode = MENU_START;
+byte colorSeqeunceLength = MENU_START;
 HSV globalColorHSV[LEDS];
-RGB one;
-
-byte globalIntensity;
-byte mainMode;
-byte patternMode;
-byte colorMode;
-byte speedMode;
-byte brightnessMode;
-int rainbowClock;
-
+byte speedMode = MENU_START;
+byte brightnessMode = MENU_START;
+char tempChar [10];
+Clock patternClock = {1,10,1}; //something
+Clock rainbowClock = {5,255,-1}; //time, per, rate
 
 enum mainModes {
 	MAIN_TITLE			= MENU_TITLE,
 	MAIN_PATTERN		= MENU_START,
 	MAIN_COLOR						,
+	MAIN_SPEED						,
 	MAIN_BRIGHTNESS					,
 	MAIN_EXIT						,
 	MAIN_SIZE			= MENU_SIZE
@@ -713,7 +716,7 @@ byte runMenu(char* (*useMenu)(byte), byte menuPos)
 byte customValueSelectMenu (byte startingValue, int increment, int minimum, int maximum, byte rolloverBOOL)
 {
 	buttonDebounce();
-	char tempChar[5]; //needed for itoa
+	//char tempChar[5]; //needed for itoa
 	int tempINT = int(startingValue);
 	HSV tempHSV = {startingValue, 255, 127};
 	long oldKnob, newKnob; //vars for dealing with encoder
@@ -780,9 +783,17 @@ char* errorMessage () {return("*Error*");}  //reduces memory, removes error stri
 char* exitMessage () {return("Nothing and Save");}  //reduces memory, removes error string info from every menu
 
 
-void clockUpdate()
+Clock& clockUpdate(Clock& clockInUse)
 {
-	rainbowClock += speedMode;//
+// 	if (clockInUse.direction) // if positive
+// 	{
+		clockInUse.time += clockInUse.rate; //rate can be negative number
+		if (clockInUse.time > clockInUse.period) {clockInUse.time -= clockInUse.period + 1;}
+// 	}
+// 	else 
+// 	{
+// 		clockInUse.time -= clockInUse.rate; 
+ 		if (clockInUse.time < 0)				{clockInUse.time += clockInUse.period + 1;}
 }
 
 
@@ -795,8 +806,7 @@ char* patternMenuContent(byte pos)
 	else if (pos == PATTERN_FADES			)		{return(	"Fading"			);}
 	else if (pos ==	PATTERN_PULSE			)		{return(	"Pulses"			);}
 	else if (pos ==	PATTERN_HEARTBEAT		)		{return(	"Heartbeat"			);}
-	else if (pos ==	PATTERN_EXIT			)		{return(	exitMessage()		);}
-	else if (pos ==	PATTERN_SIZE			)		{return(	"5"					);}
+	else if (pos ==	PATTERN_SIZE			)		{return(	"4"					);}
 	else											{return(	errorMessage()		);}
 }
 void patternMenu()
@@ -814,13 +824,31 @@ uint8_t patternRender(int ledNumber)
 	return(0);
 }
 
+char* colorSequenceLengthContent(byte pos)
+{
+	if 		(pos ==	PATTERN_LENGTH_TITLE		)	{return(	"How many colors in the loop?"		);}
+	else if (pos == PATTERN_LENGTH_1			)	{return(	"One"			);}
+	else if (pos == PATTERN_LENGTH_2			)	{return(	"Two"			);}
+	else if (pos ==	PATTERN_LENGTH_3			)	{return(	"Three"			);}
+	else if (pos ==	PATTERN_LENGTH_4			)	{return(	"Four"			);}
+	else if (pos ==	PATTERN_LENGTH_MENU_SIZE	)	{return(	"4"				);}
+	else											{return(	errorMessage()		);}
+}
+void colorSequenceLengthMenu()
+{
+	byte	result =colorSeqeunceLength;
+		result = runMenu(colorSequenceLengthContent, result);
+		if (result >= MENU_START && result < PATTERN_EXIT) {patternMode = result;}
+		else {}
+}
+
 int customColorMenu (int startHue) //pick a color hue with the dial
 {
 	HSV tempHSV;
 	tempHSV.s = 255;
 	tempHSV.v = 127;
 //	tempHSV.h = valueMenu(tempHSV.h);
-	char tempChar[5]; //needed for itoa
+//	char tempChar[5]; //needed for itoa
 //	int result = valueMenu(&tempHSV.h,3,0,255,1);
 	return(0);
 }
@@ -904,7 +932,7 @@ RGB& colorValueRender(uint8_t intensity,  int ledNumber)
 	tempHSV.v = 127;
 	if		(colorMode == COLOR_BEHAVIOR_SOLID		) {tempHSV.h = globalColorHSV[ledNumber].h;}
 	else if (colorMode == COLOR_BEHAVIOR_SEQUENCE	) {tempHSV = colorSequenceRender(ledNumber);}
-	else if (colorMode == COLOR_BEHAVIOR_RAINBOW	) {tempHSV.h = globalColorHSV[ledNumber].h + rainbowClock;}
+	else if (colorMode == COLOR_BEHAVIOR_RAINBOW	) {tempHSV.h = globalColorHSV[ledNumber].h + rainbowClock.time;}
 	else if (colorMode == COLOR_BEHAVIOR_RANDOM		) {tempHSV = colorRandomHSV(ledNumber);}
 	RGB tempRGB = hsvToRgb(tempHSV);
 	tempRGB.r = (tempRGB.r * intensity) / 255;
@@ -1014,8 +1042,9 @@ void mainMenu()
 		if		(result == MAIN_PATTERN		) {}//patternMenu();		}
 		else if (result == MAIN_PATTERN		) {}//colorBehaviorMenu();		}
 		else if (result == MAIN_COLOR		) {}//speedMenu();		}
+		else if (result == MAIN_SPEED	) {}//brightnessMenu();		}
 		else if (result == MAIN_BRIGHTNESS	) {}//brightnessMenu();		}
-		else if (result == MAIN_EXIT		) {}//lcdClearScreen();	} //clean up after menu
+		else if (result == MAIN_EXIT		) {lcdClearScreen();	} //clean up after menu
 		else {}
 	}
 }
@@ -1081,9 +1110,6 @@ void setup ()
 	analogWrite(leds[4].bluePin   , 2);
 		
  //EEPROM.write(address = bay_4_count, bay4Count = 0);
-  mainMode = MENU_START;
-  patternMode = MENU_START;
-  colorMode = MENU_START;
   
 	pinMode(PUSH_BUTTON, INPUT_PULLUP);
 	pinMode(OLED_R, OUTPUT);
@@ -1099,11 +1125,11 @@ void setup ()
 }
 void loop ()
 {
-	lcdClearLine(1);
-	lcdSetPos(1,0);
-	if (digitalRead(PUSH_BUTTON) == 0) {customValueSelectMenu(12,1,0,255,1); buttonDebounce();  lcdClearScreen(); }
-	delay(100);	 
+	if (digitalRead(PUSH_BUTTON) == 0) {mainMenu(); buttonDebounce();  lcdClearScreen(); }
+	clockUpdate(rainbowClock);
+	lcdClearLine(3);
+	lcdSetPos(3,0);
+	lcdPrint(itoa(rainbowClock.time, tempChar, 10));
+	delay(500);	 
 	//updateLEDs();
-  
-  
 }
