@@ -54,3 +54,6 @@ Visual Micro/.RV_software.vsarduino.h
 *.xml
 *.atsln
 RV_software/Visual Micro/.RV_software.vsarduino.h
+*.eep
+*.elf
+*.hex

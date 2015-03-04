@@ -15,38 +15,38 @@ typedef struct {
 	byte redPin;
 	byte greenPin;
 	byte bluePin;
-}Output;
+} Output;
 typedef struct {
 	byte g;
 	byte r;
 	byte b;
-}RGB_value;
+} RGB;
 typedef struct {
 	byte h;
 	byte s;
 	byte v;
-} HSV_value;
+} HSV;
 typedef struct {
 	int time;
 	int period;
 	int rate;
-}Clock;
+} Clock;
 typedef struct {
 	int period;
 	int rise;
 	int width;
 	int fall;
 	int count;
-}Wave;
+} Wave;
 
 #define BOOL uint8_t
 
 //Hardware defines ***********************************************************************
 #define LEDS				4
-#define PIN_RED1			1	//LED OUTPUT
-#define PIN_GREEN1			2	//LED OUTPUT
-#define PIN_BLUE1			3	//LED OUTPUT
-#define PIN_RED2			4	//LED OUTPUT
+#define PIN_RED1			2	//LED OUTPUT
+#define PIN_GREEN1			3	//LED OUTPUT
+#define PIN_BLUE1			4	//LED OUTPUT
+#define PIN_RED2			5	//LED OUTPUT
 #define PIN_GREEN2			6	//LED OUTPUT
 #define PIN_BLUE2			7	//LED OUTPUT
 #define PIN_RED3			8	//LED OUTPUT
@@ -215,7 +215,7 @@ void twiStart(void){
 }
 void twiStop(void)
 {
-#define TWI_STOP_DELAY 80
+	#define TWI_STOP_DELAY 80
 	TWCR = ((1<<TWINT) | (1<<TWEN) | (1<<TWSTO)); //send stop condition
 //	for(uint8_t ct = 0; ct < 40; ct++); //wait a moment in case a start immediately follows
 	byte cnt = 0;
@@ -442,15 +442,16 @@ void displayBattery (byte line)
 
 //Menu stuff ***********************************************************************
 Encoder knob(ENCODER_A, ENCODER_B);
-#define MENU_TIMEOUT 1000 //10 per socond
-#define DIAL_DETENT 2 //4 for blue type knob, 2 for green type knob
+#define MENU_DELAY 2
+#define MENU_TIMEOUT 2000 
+#define DIAL_DETENT 4 //for blue type knob, 2 for green type knob
 #define MENU_TITLE 0
 #define MENU_START 1
 #define MENU_SIZE 255
 
 Output leds[LEDS]; //0 is temp
-HSV_value globalColorHSV[LEDS];
-RGB_value one;
+HSV globalColorHSV[LEDS];
+RGB one;
 
 byte globalIntensity;
 byte mainMode;
@@ -500,15 +501,15 @@ enum colorModes
 	COLOR_EXIT									,
 	COLOR_MENU_SIZE					= MENU_SIZE
 };
-enum colorGlobalModes
+enum patterLengthModes
 {
-	COLOR_GLOBAL_TITLE						= MENU_TITLE,
-	COLOR_GLOBAL_SOLID						= MENU_START,
-	COLOR_GLOBAL_SEQUENCE								,
-	COLOR_GLOBAL_RAINBOW								,
-	COLOR_GLOBAL_RANDOM									,
-	COLOR_GLOBAL_EXIT									,
-	COLOR_GLOBAL_MENU_SIZE					= MENU_SIZE
+	PATTERN_LENGTH_TITLE						= MENU_TITLE,
+	PATTERN_LENGTH_1							= MENU_START,
+	PATTERN_LENGTH_2										,
+	PATTERN_LENGTH_3										,
+	PATTERN_LENGTH_4										,
+	PATTERN_LENGTH_EXIT										,
+	PATTERN_LENGTH_MENU_SIZE					= MENU_SIZE
 };
 enum colorBehaviorModes
 {
@@ -553,172 +554,7 @@ enum brightnessModes
 };
 
 
-void buttonDebounce()
-{
-	#define DEBOUNCE_LOOPS 20000; //approximately 1 millisecond delay after button is released
-	int x = DEBOUNCE_LOOPS;  //start countdown
-	while(x > 0)
-	{
-		if (digitalRead(PUSH_BUTTON)) {x--;} //button press is detected as low, count down while high.
-		else {x = DEBOUNCE_LOOPS;}	//restart the timer, a bounce was detected.
-	}
-}
-void updateLEDsColorSingle (struct HSV_value inputHSV)
-{
-	RGB_value tempRGB;
-	hsvToRgb(inputHSV, &tempRGB);
-	int i = 0;
-	while (i <= LEDS)
-	{
-		leds[i].r = tempRGB.r;
-		leds[i].g = tempRGB.g;
-		leds[i].b = tempRGB.b;
-		i++;
-	}
-	updateLedOutputs();
-}
-void updateLedOutputs()
-{
-	int i = 0;
-	while (i < LEDS)
-	{
-		analogWrite(leds[i].redPin,   leds[i].r);
-		analogWrite(leds[i].greenPin, leds[i].g);
-		analogWrite(leds[i].bluePin,  leds[i].b);
-		i++;
-	}
-}
-
-int a2i(char *s)
-{
-	int num=0;
-	while(*s)
-	{
-		num=((*s)-'0')+num*10;
-		s++;
-	}
-	return num;
-}
-void showMenu  (char* (*useMenu)(byte), byte pos)
-{
-	lcdClearLine(1);
-	lcdSetPos(1, 0);
- 	lcdPrint(useMenu(pos));
-}
-void showTitle (char* (*useMenu)(byte), byte pos)
-{
-	lcdClearLine(0);
-	lcdSetPos(0, 0);
-	lcdPrint(useMenu(pos));
-}
-byte runMenu(char* (*useMenu)(byte), byte menuPos)
-{
-	buttonDebounce();
-	char* menuSizePtr = useMenu(MENU_SIZE); 
-	int menuSize = a2i(menuSizePtr); // turn text returned by menu into a number 
-	showTitle(useMenu, MENU_TITLE); //load menu title
-	showMenu(useMenu, menuPos); //load menu starting possition, initial display
-	long oldKnob, newKnob; //vars for dealing with menu position
-	oldKnob = newKnob = knob.read(); //prime them
-	double menuTimeout = MENU_TIMEOUT; 
-	while (menuTimeout != 0)
-	{
-  		newKnob = knob.read();
-  		if(newKnob <= oldKnob-DIAL_DETENT)
-  		{
-	  		oldKnob -= DIAL_DETENT;
-	  		menuTimeout = MENU_TIMEOUT;
-	  		menuPos++;
-	 		if (menuPos >= MENU_START + menuSize) {menuPos -= menuSize;}
-			showMenu(useMenu, menuPos);
-  		}
-  		if(newKnob >= oldKnob+DIAL_DETENT)
-  		{
-	  		oldKnob += DIAL_DETENT;
-	  		menuTimeout = MENU_TIMEOUT;
-	  		menuPos--;
-			if (menuPos == MENU_TITLE) {menuPos += menuSize;}
-			showMenu(useMenu, menuPos);
-  		}
-  		if (digitalRead(PUSH_BUTTON)) {menuTimeout--;} // keep counting down
-		else {buttonDebounce();	return(menuPos);}  //was pressed return current selection
-  		delay(10);
-	}
-	return(MENU_TITLE);  //result = timeout
-}
-byte valueMenu (byte *startingValue, int increment, int minimum, int maximum, byte rolloverBOOL)
-{
-	char tempChar[5]; //needed for itoa
-	int tempINT = int(*startingValue);
-	HSV_value tempHSV;
-	tempHSV.s = 255;
-	tempHSV.v = 127;
-	long oldKnob, newKnob; //vars for dealing with encoder
-	oldKnob = newKnob = knob.read(); //initial values
-	long menuTimeout = MENU_TIMEOUT; //countdown timeout
-	lcdClearLine(1);
-	lcdPrint(itoa(tempINT, tempChar, 10));
-	while (menuTimeout != 0)
-	{
-		newKnob = knob.read();
-		if(newKnob <= oldKnob-DIAL_DETENT)
-		{
-			oldKnob = oldKnob-DIAL_DETENT;
-			menuTimeout = MENU_TIMEOUT;
-			tempINT += increment;
-			if (tempINT >= maximum) 
-			{
-				if (rolloverBOOL)
-				{
-					tempINT -= maximum - minimum;
-				}
-				else
-				{
-					tempINT = maximum;
-				}
-			}
-			lcdClearLine(1);
-			lcdPrint(itoa(tempINT, tempChar, 10));
-			lcdPrint("     ");
-			tempHSV.h = tempINT;	
-			updateLEDsColorSingle(tempHSV);
-			
-		}
-		else if(newKnob >= oldKnob+DIAL_DETENT)
-		{
-			oldKnob = oldKnob+DIAL_DETENT;
-			menuTimeout = MENU_TIMEOUT;
-			startingValue -= increment;
-			if (tempINT <= minimum)
-			{
-				if (rolloverBOOL)
-				{
-					tempINT += maximum - minimum;
-				}
-				else
-				{
-					tempINT = minimum;
-				}
-			}lcdSetPos(1,0);
-			lcdPrint(itoa(tempINT, tempChar, 10));
-			lcdPrint("     ");
-			tempHSV.h = tempINT;
-			updateLEDsColorSingle(tempHSV);	
-		}
-		if (digitalRead(PUSH_BUTTON)) //was pressed return current selection
-		{
-			buttonDebounce(); 
-			 *startingValue = tempINT;
-			return(1);
-		}  
-	}
-	*startingValue = byte(tempINT);  //result = timeout no change
-};
-char* errorMessage () {return("*Error*");}  //reduces memory, removes error string info from every menu
-char* exitMessage () {return("Nothing and Save");}  //reduces memory, removes error string info from every menu
-
-/*
-void hsvToRgb(HSV input, RGB *returnValue)
+RGB& hsvToRgb(HSV& input)
 {
 	RGB tempRGB;
 	unsigned char region, p, q, t;
@@ -729,11 +565,10 @@ void hsvToRgb(HSV input, RGB *returnValue)
 		tempRGB.r = input.v;
 		tempRGB.g = input.v;
 		tempRGB.b = input.v;
-		*returnValue = tempRGB;
-		return;
+		return(tempRGB);
 	}
 
-	 converting to 16 bit to prevent overflow
+	// converting to 16 bit to prevent overflow
 	h = input.h;
 	s = input.s;
 	v = input.v;
@@ -778,50 +613,178 @@ void hsvToRgb(HSV input, RGB *returnValue)
 		tempRGB.b = q;
 		break;
 	}
-	*returnValue = tempRGB;
-	return tempRGB;
+	return(tempRGB);
 }
+void buttonDebounce()
+{
+	#define DEBOUNCE_LOOPS 20000; //approximately 1 millisecond delay after button is released
+	int x = DEBOUNCE_LOOPS;  //start countdown
+	while(x > 0)
+	{
+		if (digitalRead(PUSH_BUTTON)) {x--;} //button press is detected as low, count down while high.
+		else {x = DEBOUNCE_LOOPS;}	//restart the timer, a bounce was detected.
+	}
+}
+void updateLedOutputs()
+{
+	int i = 0;
+	while (i < LEDS)
+	{
+		analogWrite(leds[i].redPin,   leds[i].r);
+		analogWrite(leds[i].greenPin, leds[i].g);
+		analogWrite(leds[i].bluePin,  leds[i].b);
+		i++;
+	}
+}
+/*
+void updateLEDsColorSingle (HSV& input)
+{
+	RGB tempRGB = hsvToRgb(input);
+	int i = 0;
+	while (i < LEDS)
+	{
+		leds[i].r = tempRGB.r;
+		leds[i].g = tempRGB.g;
+		leds[i].b = tempRGB.b;
+		i++;
+	}
+	updateLedOutputs();
+}
+*/
+
+int a2i(char *s)
+{
+	int num=0;
+	while(*s)
+	{
+		num=((*s)-'0')+num*10;
+		s++;
+	}
+	return num;
+}
+void showMenu  (char* (*useMenu)(byte), byte pos)
+{
+	lcdClearLine(1);
+	lcdSetPos(1, 0);
+ 	lcdPrint(useMenu(pos));
+}
+void showTitle (char* (*useMenu)(byte), byte pos)
+{
+	lcdClearLine(0);
+	lcdSetPos(0, 0);
+	lcdPrint(useMenu(pos));
+	displayBattery(3);
+}
+byte runMenu(char* (*useMenu)(byte), byte menuPos)
+{
+	buttonDebounce();
+	char* menuSizePtr = useMenu(MENU_SIZE); 
+	int menuSize = a2i(menuSizePtr); // turn text returned by menu into a number 
+	showTitle(useMenu, MENU_TITLE); //load menu title
+	showMenu(useMenu, menuPos); //load menu starting possition, initial display
+	long oldKnob, newKnob; //vars for dealing with menu position
+	oldKnob = newKnob = knob.read(); //prime them
+	double menuTimeout = MENU_TIMEOUT; 
+	while (menuTimeout != 0)
+	{
+  		newKnob = knob.read();
+  		if(newKnob <= oldKnob-DIAL_DETENT)
+  		{
+	  		oldKnob -= DIAL_DETENT;
+	  		menuTimeout = MENU_TIMEOUT;
+	  		menuPos++;
+	 		if (menuPos >= MENU_START + menuSize) {menuPos -= menuSize;}
+			showMenu(useMenu, menuPos);
+  		}
+  		if(newKnob >= oldKnob+DIAL_DETENT)
+  		{
+	  		oldKnob += DIAL_DETENT;
+	  		menuTimeout = MENU_TIMEOUT;
+	  		menuPos--;
+			if (menuPos == MENU_TITLE) {menuPos += menuSize;}
+			showMenu(useMenu, menuPos);
+  		}
+  		if (digitalRead(PUSH_BUTTON)) {menuTimeout--;} // keep counting down
+		else {buttonDebounce();	return(menuPos);}  //was pressed return current selection
+  		delay(MENU_DELAY);
+	}
+	return(MENU_TITLE);  //result = timeout
+}
+byte customValueSelectMenu (byte startingValue, int increment, int minimum, int maximum, byte rolloverBOOL)
+{
+	buttonDebounce();
+	char tempChar[5]; //needed for itoa
+	int tempINT = int(startingValue);
+	HSV tempHSV = {startingValue, 255, 127};
+	long oldKnob, newKnob; //vars for dealing with encoder
+	oldKnob = newKnob = knob.read(); //initial values
+	long menuTimeout = MENU_TIMEOUT; //countdown timeout
+	lcdClearLine(1);
+	lcdPrint(itoa(tempINT, tempChar, 10));
+	while (menuTimeout != 0)
+	{
+		newKnob = knob.read();
+		if(newKnob <= oldKnob-DIAL_DETENT)
+		{
+			oldKnob = oldKnob-DIAL_DETENT;
+			menuTimeout = MENU_TIMEOUT;
+			tempINT += increment;
+			if (tempINT > maximum) 
+			{
+				if (rolloverBOOL)
+				{
+					tempINT = minimum;
+				}
+				else
+				{
+					tempINT = maximum;
+				}
+			}
+			lcdClearLine(1);
+			lcdPrint(itoa(tempINT, tempChar, 10));
+			lcdPrint("     ");
+			//updateLEDsColorSingle(tempHSV);
+		}
+		else if(newKnob >= oldKnob+DIAL_DETENT)
+		{
+			oldKnob = oldKnob+DIAL_DETENT;
+			menuTimeout = MENU_TIMEOUT;
+			tempINT -= increment;
+			if (tempINT < minimum)
+			{
+				if (rolloverBOOL)
+				{
+					tempINT = maximum;
+				}
+				else
+				{
+					tempINT = minimum;
+				}
+			}lcdSetPos(1,0);
+			lcdPrint(itoa(tempINT, tempChar, 10));
+			lcdPrint("     ");
+			//updateLEDsColorSingle(tempHSV);	
+		}
+		if (digitalRead(PUSH_BUTTON) == 0) //was pressed return current selection
+		{
+			buttonDebounce(); 
+			return(byte(tempINT));  //result = timeout no change
+		}
+		delay(MENU_DELAY);
+		menuTimeout--;
+	}
+	return(startingValue);  //result = timeout no change
+};
+
+char* errorMessage () {return("*Error*");}  //reduces memory, removes error string info from every menu
+char* exitMessage () {return("Nothing and Save");}  //reduces memory, removes error string info from every menu
+
+
 void clockUpdate()
 {
 	rainbowClock += speedMode;//
 }
 
-
-/ *
-HSV colorRandomHSV(int ledNumber)
-{
-	HSV tempHSV;
-	tempHSV.s = 255;
-	tempHSV.v = 127;
-	tempHSV.h = 0;
-	return(tempHSV);
-
-}
-HSV colorSequenceRender(int ledNumber)
-{
-	HSV tempHSV;
-	tempHSV.s = 255;
-	tempHSV.v = 127;
-	if (colorMode == COLOR_SELECT_CUSTOM) {tempHSV.h = leds[ledNumber].customColor;} 
-	return(tempHSV);
-}
-* /
-void colorValueRender(uint8_t intensity,  int ledNumber, RGB *returnValue) 
-{
-	HSV tempHSV;
-	tempHSV.s = 255;
-	tempHSV.v = 127;
-	if		(colorMode == COLOR_BEHAVIOR_SOLID		) {tempHSV.h = globalColorHSV[ledNumber].h;}
-	else if (colorMode == COLOR_BEHAVIOR_SEQUENCE	) {tempHSV = colorSequenceRender(ledNumber);}
-	else if (colorMode == COLOR_BEHAVIOR_RAINBOW	) {tempHSV.h = globalColorHSV[ledNumber].h + rainbowClock;}
-	else if (colorMode == COLOR_BEHAVIOR_RANDOM		) {tempHSV = colorRandomHSV(ledNumber);}
-	RGB tempRGB;
-	hsvToRgb(tempHSV, &tempRGB);
-	tempRGB.r = (tempRGB.r * intensity) / 255;
-	tempRGB.g = (tempRGB.g * intensity) / 255;
-	tempRGB.b = (tempRGB.b * intensity) / 255;
-	*returnValue = tempRGB;
-}
 
 
 //pattern  menu	
@@ -846,7 +809,7 @@ void patternMenu()
   		else {}
 	}
 }
-uint8_t patternRender(RGB *input, int ledNumber)
+uint8_t patternRender(int ledNumber)
 {
 	return(0);
 }
@@ -856,11 +819,11 @@ int customColorMenu (int startHue) //pick a color hue with the dial
 	HSV tempHSV;
 	tempHSV.s = 255;
 	tempHSV.v = 127;
-	tempHSV.h = customColorMenu(tempHSV.h);
+//	tempHSV.h = valueMenu(tempHSV.h);
 	char tempChar[5]; //needed for itoa
-	int result = valueMenu(&tempHSV.h,3,0,255,1);
+//	int result = valueMenu(&tempHSV.h,3,0,255,1);
+	return(0);
 }
-
 char* colorSelectContent(byte pos)
 {
 	if 		(pos == COLOR_SELECT_TITLE				)	{return(	"Choose a Color:"		);}
@@ -895,14 +858,11 @@ char* colorSelectContentSmall(byte pos)
 	else if (pos == COLOR_SELECT_MENU_SIZE	)	{return("11"			);}
 	else										{return(errorMessage()	);}
 }
-void colorSelectMenu(byte pos, RGB *returnValue)//, uint8_t *colorSpace)
+RGB& colorSelectMenu(byte startHue) //uint8_t *colorSpace)
 {
-	HSV tempHSV;
-	tempHSV.s = 255;
-	tempHSV.v = 127;
-	tempHSV.h = 0;// *colorSpace;
-	byte	result = pos;
-	while (result != MAIN_EXIT && result != MENU_TITLE)
+	HSV tempHSV = {startHue, 255, 127};
+	byte result = MENU_START;
+	while (result != COLOR_SELECT_EXIT && result != MENU_TITLE)
 	{
 		result = runMenu(colorSelectContent, result);
 		if		(result == COLOR_SELECT_RED						) {tempHSV.h = 0;}
@@ -916,12 +876,41 @@ void colorSelectMenu(byte pos, RGB *returnValue)//, uint8_t *colorSpace)
 		else if (result == COLOR_SELECT_PINK					) {tempHSV.h = 234;}
 		else if (result == COLOR_SELECT_WHITE					) {tempHSV.v = 255; tempHSV.s = 0;}
 		else if (result == COLOR_SELECT_CUSTOM					) {tempHSV.h = customColorMenu(tempHSV.h);}
-		updateLEDsColorSingle(tempHSV);
+//	updateLEDsColorSingle(tempHSV);
 	}
-	RGB tempRGB;
-	hsvToRgb(tempHSV, &tempRGB);
-	*returnValue = tempRGB;
-	/ *return(hsvToRgb(tempHSV));* /
+	return(hsvToRgb(tempHSV));
+}
+
+HSV& colorRandomHSV(int ledNumber)
+{
+	HSV tempHSV;
+	tempHSV.s = 255;
+	tempHSV.v = 127;
+	tempHSV.h = rand();
+	return(tempHSV);
+}
+HSV& colorSequenceRender(int ledNumber)
+{
+	HSV tempHSV;
+	tempHSV.s = 255;
+	tempHSV.v = 127;
+//	if (colorMode == COLOR_SELECT_CUSTOM) {tempHSV.h = leds[ledNumber].customColor;} 
+	return(tempHSV);
+}
+RGB& colorValueRender(uint8_t intensity,  int ledNumber) 
+{
+	HSV tempHSV;
+	tempHSV.s = 255;
+	tempHSV.v = 127;
+	if		(colorMode == COLOR_BEHAVIOR_SOLID		) {tempHSV.h = globalColorHSV[ledNumber].h;}
+	else if (colorMode == COLOR_BEHAVIOR_SEQUENCE	) {tempHSV = colorSequenceRender(ledNumber);}
+	else if (colorMode == COLOR_BEHAVIOR_RAINBOW	) {tempHSV.h = globalColorHSV[ledNumber].h + rainbowClock;}
+	else if (colorMode == COLOR_BEHAVIOR_RANDOM		) {tempHSV = colorRandomHSV(ledNumber);}
+	RGB tempRGB = hsvToRgb(tempHSV);
+	tempRGB.r = (tempRGB.r * intensity) / 255;
+	tempRGB.g = (tempRGB.g * intensity) / 255;
+	tempRGB.b = (tempRGB.b * intensity) / 255;
+	return(tempRGB);
 }
 
 char* colorBehaviorMenuContent(byte pos)
@@ -1002,9 +991,9 @@ void speedMenu()
 		if		(result >= SPEED_1 && result <= SPEED_5)  {speedMode = result;}
 		else {}
 	}
-}*/
+}
 
-//mainmenu
+//main menu
 char* mainMenuContent(byte pos)
 {
 	if 		(pos ==	MAIN_TITLE			)		{return(	"Lets change the"	);}
@@ -1015,6 +1004,7 @@ char* mainMenuContent(byte pos)
 	else if (pos ==	MAIN_SIZE			)		{return(	"4"					);}
 	else										{return(	errorMessage()		);}
 }
+
 void mainMenu()
 {
 	byte	result = mainMode;
@@ -1030,11 +1020,10 @@ void mainMenu()
 	}
 }
 
-
 void render ()
 {
 	//clockUpdate();
-	RGB_value tempRGB;
+	RGB tempRGB;
 	int i = 0;
 	uint8_t bright;
 	while (i <= LEDS)
@@ -1053,7 +1042,7 @@ void setup ()
 {
 				leds[1].redPin    = PIN_RED1;
 	pinMode(	leds[1].redPin    , OUTPUT);
-	analogWrite(leds[1].redPin    , 0);
+	analogWrite(leds[1].redPin    , 1);
 				leds[1].greenPin  = PIN_GREEN1;
 	pinMode(	leds[1].greenPin  , OUTPUT);
 	analogWrite(leds[1].greenPin  , 0);
@@ -1066,7 +1055,7 @@ void setup ()
 	analogWrite(leds[2].redPin    , 0);
 				leds[2].greenPin  = PIN_GREEN2;
 	pinMode(	leds[2].greenPin  , OUTPUT);
-	analogWrite(leds[2].greenPin  , 0);
+	analogWrite(leds[2].greenPin  , 1);
 				leds[2].bluePin   = PIN_BLUE2;
 	pinMode(	leds[2].bluePin   , OUTPUT);
 	analogWrite(leds[2].bluePin   , 0);
@@ -1079,17 +1068,17 @@ void setup ()
 	analogWrite(leds[3].greenPin  , 0);
 				leds[3].bluePin   = PIN_BLUE3;
 	pinMode(	leds[3].bluePin   , OUTPUT);
-	analogWrite(leds[3].bluePin   , 0);
+	analogWrite(leds[3].bluePin   , 1);
 			
 				leds[4].redPin    = PIN_RED4;
 	pinMode(	leds[4].redPin    , OUTPUT);
-	analogWrite(leds[4].redPin    , 0);
+	analogWrite(leds[4].redPin    , 2);
 				leds[4].greenPin  = PIN_GREEN4;
 	pinMode(	leds[4].greenPin  , OUTPUT);
-	analogWrite(leds[4].greenPin  , 0);
+	analogWrite(leds[4].greenPin  , 2);
 				leds[4].bluePin   = PIN_BLUE4;
 	pinMode(	leds[4].bluePin   , OUTPUT);
-	analogWrite(leds[4].bluePin   , 0);
+	analogWrite(leds[4].bluePin   , 2);
 		
  //EEPROM.write(address = bay_4_count, bay4Count = 0);
   mainMode = MENU_START;
@@ -1105,14 +1094,15 @@ void setup ()
     lcdPrintln("Wes's RV Light Show");
     lcdSetPos(2,33);
     lcdPrint("By Jopel Designs");
+	delay(2500);
+	lcdClearScreen();
 }
 void loop ()
 {
 	lcdClearLine(1);
 	lcdSetPos(1,0);
-	if (digitalRead(PUSH_BUTTON) == 0) {lcdPrint("click");}
-	displayBattery(3);
-	delay(100);	//mainMenu(); buttonDebounce();  lcdClearScreen(); } 
+	if (digitalRead(PUSH_BUTTON) == 0) {customValueSelectMenu(12,1,0,255,1); buttonDebounce();  lcdClearScreen(); }
+	delay(100);	 
 	//updateLEDs();
   
   
