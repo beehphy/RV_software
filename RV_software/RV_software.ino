@@ -31,6 +31,7 @@ typedef struct {
 	int time;
 	int period;
 	int rate;
+	byte rollover;
 } Clock;
 typedef struct {
 	int period;
@@ -46,6 +47,8 @@ typedef struct {
 #define LEDS				4
 #define FRAME_RATE			30
 #define RENDER_RATE			1000 / FRAME_RATE
+#define MAX_BRIGHTNESS		300 // MAX_BRIGHTNESS * SCALE_ACCURACY < 32768
+#define SCALE_ACCURACY		100
 #define PIN_RED1			4//2	//LED OUTPUT
 #define PIN_GREEN1			2//3	//LED OUTPUT
 #define PIN_BLUE1			3//4	//LED OUTPUT
@@ -570,29 +573,29 @@ enum brightnessModes
 };
 
 Output leds[LEDS]; 
-byte globalIntensity = 0x40; // should be eeprom loads
-byte mainMode = MENU_START;
-byte patternMode  = MENU_START;
-byte colorMode = MENU_START;
-byte colorBehaviorMode = MENU_START;
+int globalIntensity; // should be eeprom loads
+byte mainMode = MAIN_COLOR;
+byte patternMode  = PATTERN_PULSE;
+byte colorMode = COLOR_BEHAVIOR;
+byte colorBehaviorMode = COLOR_BEHAVIOR_RAINBOW;
 //byte colorSeqeunceLength = MENU_START; in colorSequenceClock.period now
 HSV globalColorHSV[LEDS] = {
-	{COLOR_HSV_BLUE, 255, 127, COLOR_SELECT_BLUE},
-	{COLOR_HSV_GREEN, 255, 127, COLOR_SELECT_GREEN},
-	{COLOR_HSV_ORANGE, 255, 127, COLOR_SELECT_ORANGE},
-	{COLOR_HSV_SKY, 255, 127, COLOR_SELECT_SKY}
+	{COLOR_HSV_BLUE, 255, 255, COLOR_SELECT_BLUE},
+	{COLOR_HSV_SKY, 255, 255, COLOR_SELECT_SKY},
+	{COLOR_HSV_VIOLET, 255, 255, COLOR_SELECT_VIOLET},
+	{COLOR_HSV_PINK, 255, 255, COLOR_SELECT_PINK}
 }; 
 //byte speedMode = MENU_START; in colorSequenceClock.rate now
-byte brightnessMode = 0;
-Clock patternClock = {1,10,1}; //something
-Clock patternRenderClock = {1, 100, SPEED_3};
-Clock colorSequenceClock = {1,4,1};
-Clock colorRenderClock = {1, 100, SPEED_3};
-Clock rainbowClock = {5, 255, -1}; //time, per, rate
+byte brightnessMode = 40;
+Clock patternClock = {1,10,1, 0}; //something
+Clock patternRenderClock = {1, 100, SPEED_3, 0};
+Clock colorSequenceClock = {1,4,1, 0};
+Clock colorRenderClock = {1, 100, SPEED_3, 0};
+Clock rainbowClock = {5, 255, -5, 0}; //time, per, rate
 
-RGB& hsvToRgb(HSV& input)
+RGB& hsvToRgb(HSV& input, RGB& tempRGB)
 {
-	RGB tempRGB;
+	//RGB tempRGB;
 	unsigned char region, p, q, t;
 	unsigned int h, s, v, remainder;
 
@@ -792,16 +795,27 @@ int runValueMenu (char* (*useMenu)(int), byte startingValue, int increment, int 
 Clock& clockUpdate(Clock& clockInUse)
 {
 	clockInUse.time += clockInUse.rate; //rate can be negative number
-	if (clockInUse.time > clockInUse.period) {clockInUse.time -= clockInUse.period + 1;}
- 	if (clockInUse.time < 0)				 {clockInUse.time += clockInUse.period + 1;}
+	if (clockInUse.time > clockInUse.period) {clockInUse.time = clockInUse.time - (clockInUse.period + 1); clockInUse.rollover = 1;}
+ 	if (clockInUse.time < 0)				 {clockInUse.time = clockInUse.time + (clockInUse.period + 1); clockInUse.rollover = 1;}
 }
-uint8_t patternRender(int ledNumber)
+void globalClockUpdate()
 {
-	return(0);
+	//deal with all clocks
+	clockUpdate(rainbowClock);
 }
-HSV& colorRandomHSV()
+void globalIntensitySync()
 {
-	HSV tempHSV = {rand(), rand(), 255};
+	globalIntensity = (brightnessMode * 255) / 100; //scale from 100 to 255
+}
+byte patternRender(int ledNumber)
+{
+	return(255);
+}
+HSV& colorRandomHSV(HSV& tempHSV)
+{
+	tempHSV.h = rand();
+	tempHSV.s = rand();
+	tempHSV.v = 255;
 	return(tempHSV);
 }
 HSV& colorSequenceRender(int ledNumber)
@@ -812,35 +826,43 @@ HSV& colorSequenceRender(int ledNumber)
 	//	if (colorMode == COLOR_SELECT_CUSTOM) {tempHSV.h = leds[ledNumber].customColor;}
 	return(tempHSV);
 }
-RGB& colorValueRender(uint8_t intensity,  int ledNumber)
+RGB& colorBalance (RGB& tempRGB)
+{
+	int sum = tempRGB.r + tempRGB.g + tempRGB.b;
+	if (sum > MAX_BRIGHTNESS)
+	{
+		unsigned int ratio = (SCALE_ACCURACY * MAX_BRIGHTNESS) / sum;
+		tempRGB.r = (tempRGB.r * ratio) / SCALE_ACCURACY;
+		tempRGB.g = (tempRGB.g * ratio) / SCALE_ACCURACY;
+		tempRGB.b = (tempRGB.b * ratio) / SCALE_ACCURACY;
+	}
+}
+RGB& colorValueRender(int ledNumber, byte val)
 {
 	HSV tempHSV;
-	tempHSV.s = 255;
-	tempHSV.v = 127;
-	if		(colorMode == COLOR_BEHAVIOR_SOLID		) {tempHSV = globalColorHSV[ledNumber];}
-	else if (colorMode == COLOR_BEHAVIOR_SEQUENCE	) {tempHSV = colorSequenceRender(ledNumber);}
-	else if (colorMode == COLOR_BEHAVIOR_RAINBOW	) {tempHSV.h = globalColorHSV[ledNumber].h + rainbowClock.time;}
-	else if (colorMode == COLOR_BEHAVIOR_RANDOM		) {tempHSV = colorRandomHSV();}
-	//else if (result == COLOR_SELECT_WHITE					) {tempHSV.v = 255; tempHSV.s = 0;}
-	RGB tempRGB = hsvToRgb(tempHSV);
-	tempRGB.r = (tempRGB.r * intensity) / 255;
-	tempRGB.g = (tempRGB.g * intensity) / 255;
-	tempRGB.b = (tempRGB.b * intensity) / 255;
+	RGB tempRGB;
+	if		(colorBehaviorMode == COLOR_BEHAVIOR_SOLID		) {tempHSV = globalColorHSV[ledNumber];}
+	else if (colorBehaviorMode == COLOR_BEHAVIOR_SEQUENCE	) {tempHSV = colorSequenceRender(ledNumber);}
+	else if (colorBehaviorMode == COLOR_BEHAVIOR_RAINBOW	) {tempHSV.h = globalColorHSV[ledNumber].h + rainbowClock.time; tempHSV.s = 255;}
+	else if (colorBehaviorMode == COLOR_BEHAVIOR_RANDOM		) {colorRandomHSV(tempHSV);}
+	tempHSV.v = val;
+	hsvToRgb(tempHSV, tempRGB);
+	colorBalance(tempRGB);
 	return(tempRGB);
 }
-void render ()
+
+void render()
 {
-	//clockUpdate();
+	globalClockUpdate();
+	globalIntensitySync();
 	RGB tempRGB;
 	int i = 0;
-	uint8_t bright;
-	while (i <= LEDS)
+	while (i < LEDS)
 	{
-		//bright = patternRender(&tempRGB, i);
-		//colorValueRender(bright, i, &tempRGB);
-		leds[i].r = (tempRGB.r * globalIntensity) / 255;
-		leds[i].g = (tempRGB.g * globalIntensity) / 255;
-		leds[i].b = (tempRGB.b * globalIntensity) / 255;
+		tempRGB = colorValueRender(i, patternRender(i));
+		leds[i].r = int((tempRGB.r * globalIntensity) / 255);
+		leds[i].g = int((tempRGB.g * globalIntensity) / 255);
+		leds[i].b = int((tempRGB.b * globalIntensity) / 255);
 		i++;
 	}
 	updateLedOutputs();
@@ -1100,45 +1122,45 @@ void mainMenu()
 
 void setup ()
 {
-				leds[1].redPin    = PIN_RED1;
+				leds[0].redPin    = PIN_RED1;
+	pinMode(	leds[0].redPin    , OUTPUT);
+	analogWrite(leds[0].redPin    , 1);
+				leds[0].greenPin  = PIN_GREEN1;
+	pinMode(	leds[0].greenPin  , OUTPUT);
+	analogWrite(leds[0].greenPin  , 0);
+				leds[0].bluePin   = PIN_BLUE1;
+	pinMode(	leds[0].bluePin   , OUTPUT);
+	analogWrite(leds[0].bluePin   , 0);
+		
+				leds[1].redPin    = PIN_RED2;
 	pinMode(	leds[1].redPin    , OUTPUT);
-	analogWrite(leds[1].redPin    , 1);
-				leds[1].greenPin  = PIN_GREEN1;
+	analogWrite(leds[1].redPin    , 0);
+				leds[1].greenPin  = PIN_GREEN2;
 	pinMode(	leds[1].greenPin  , OUTPUT);
-	analogWrite(leds[1].greenPin  , 0);
-				leds[1].bluePin   = PIN_BLUE1;
+	analogWrite(leds[1].greenPin  , 1);
+				leds[1].bluePin   = PIN_BLUE2;
 	pinMode(	leds[1].bluePin   , OUTPUT);
 	analogWrite(leds[1].bluePin   , 0);
 		
-				leds[2].redPin    = PIN_RED2;
+				leds[2].redPin    = PIN_RED3;
 	pinMode(	leds[2].redPin    , OUTPUT);
 	analogWrite(leds[2].redPin    , 0);
-				leds[2].greenPin  = PIN_GREEN2;
+				leds[2].greenPin  = PIN_GREEN3;
 	pinMode(	leds[2].greenPin  , OUTPUT);
-	analogWrite(leds[2].greenPin  , 1);
-				leds[2].bluePin   = PIN_BLUE2;
+	analogWrite(leds[2].greenPin  , 0);
+				leds[2].bluePin   = PIN_BLUE3;
 	pinMode(	leds[2].bluePin   , OUTPUT);
-	analogWrite(leds[2].bluePin   , 0);
-		
-				leds[3].redPin    = PIN_RED3;
-	pinMode(	leds[3].redPin    , OUTPUT);
-	analogWrite(leds[3].redPin    , 0);
-				leds[3].greenPin  = PIN_GREEN3;
-	pinMode(	leds[3].greenPin  , OUTPUT);
-	analogWrite(leds[3].greenPin  , 0);
-				leds[3].bluePin   = PIN_BLUE3;
-	pinMode(	leds[3].bluePin   , OUTPUT);
-	analogWrite(leds[3].bluePin   , 1);
+	analogWrite(leds[2].bluePin   , 1);
 			
-				leds[4].redPin    = PIN_RED4;
-	pinMode(	leds[4].redPin    , OUTPUT);
-	analogWrite(leds[4].redPin    , 2);
-				leds[4].greenPin  = PIN_GREEN4;
-	pinMode(	leds[4].greenPin  , OUTPUT);
-	analogWrite(leds[4].greenPin  , 2);
-				leds[4].bluePin   = PIN_BLUE4;
-	pinMode(	leds[4].bluePin   , OUTPUT);
-	analogWrite(leds[4].bluePin   , 2);
+				leds[3].redPin    = PIN_RED4;
+	pinMode(	leds[3].redPin    , OUTPUT);
+	analogWrite(leds[3].redPin    , 2);
+				leds[3].greenPin  = PIN_GREEN4;
+	pinMode(	leds[3].greenPin  , OUTPUT);
+	analogWrite(leds[3].greenPin  , 2);
+				leds[3].bluePin   = PIN_BLUE4;
+	pinMode(	leds[3].bluePin   , OUTPUT);
+	analogWrite(leds[3].bluePin   , 2);
 		
  //EEPROM.write(address = bay_4_count, bay4Count = 0);
   
@@ -1158,5 +1180,7 @@ void loop ()
 {
 	if (digitalRead(PUSH_BUTTON) == 0) {mainMenu(); buttonDebounce();  lcdClearScreen(); }
 	delay(RENDER_RATE);	 
-	//render();
+	//lcdPintInt(rainbowClock.time,2);
+	//clockUpdate(rainbowClock);
+	render();
 }
