@@ -448,8 +448,8 @@ Encoder knob(ENCODER_A, ENCODER_B);
 #define MENU_DELAY 1
 #define MENU_TIMEOUT 3000 
 #define DIAL_DETENT 4 //for blue type knob, 2 for green type knob
-#define MENU_TITLE -1
 #define MENU_START 1
+#define MENU_TITLE -1
 #define MENU_SIZE -2
 
 enum menuBehavior
@@ -689,9 +689,8 @@ int a2i(char *s)
 void showMenuContent  (char* (*useMenu)(int), int pos)
 {
 	lcdClearLine(1);
-	lcdSetPos(1, 6);
-	//lcdPrint(">> ");
- 	lcdPrint(useMenu(pos));
+	lcdSetPos(1, 3);
+	lcdPrint(useMenu(pos));
 }
 void showMenuTitle (char* (*useMenu)(int), int pos)
 {
@@ -791,10 +790,6 @@ int runValueMenu (byte startingValue, int increment, int minimum, int maximum, b
 	return(menuExit);  //result = timeout no change
 };
 
-char* errorMessage () {return("*Error*");}  //reduces memory, removes error string info from every menu
-char* exitMessage () {return("Nothing and Save");}  //reduces memory, removes error string info from every menu
-
-
 Clock& clockUpdate(Clock& clockInUse)
 {
 // 	if (clockInUse.direction) // if positive
@@ -861,7 +856,9 @@ void render ()
 	updateLedOutputs();
 }
 
-//pattern  menu	
+char* errorMessage () {return("*Error*");}  //reduces memory, removes error string info from every menu
+char* exitMessage () {return("Nothing and Save");}  //reduces memory, removes error string info from every menu
+
 char* patternMenuContent(int pos)
 {
 	if 		(pos ==	PATTERN_TITLE			)		{return(	"Pattern Menu:"		);}
@@ -889,17 +886,17 @@ char* customColorMenuContent(int pos)
 	else if (pos >= BRIGHT_MINIMUM && pos <= BRIGHT_MAXIMUM	)
 	{
 		//build a string based on global brightness
-		char tempstring [MAX_COLS + 1] = "Hue: "; // room for value render
+		char* tempstring = "Hue: "; // room for value render
 		char* buffer = itoa(globalIntensity, tempChar, 10);
 		byte i = 5; //length of hue:
 		byte len = strlen(buffer);
 		byte j = 0;
-		while (i < len) {
+		while (j < len) {
 			tempstring[i] = buffer[j];
 			j++;
 			i++;
 		}
-		tempstring[i] = '\n';
+		tempstring[i] = NULL;
 		return(	tempstring	);
 	}
 	else if (pos == BRIGHT_SIZE		)	{return("100"					);} //100%
@@ -949,7 +946,7 @@ HSV& colorSelectMenu(HSV& underChange) //uint8_t *colorSpace)
 
 char* colorSequenceLengthContent(int pos)
 {
-	if 		(pos ==	COLOR_SEQUENCE_LENGTH_TITLE		)	{return(	"How many colors in the loop?"		);}
+	if 		(pos ==	COLOR_SEQUENCE_LENGTH_TITLE		)	{return(	"Sequence Length"		);}
 	else if (pos == COLOR_SEQUENCE_LENGTH_1			)	{return(	"One"			);}
 	else if (pos == COLOR_SEQUENCE_LENGTH_2			)	{return(	"Two"			);}
 	else if (pos ==	COLOR_SEQUENCE_LENGTH_3			)	{return(	"Three"			);}
@@ -960,9 +957,12 @@ char* colorSequenceLengthContent(int pos)
 void colorSequenceLengthMenu()
 {
 	int	result = colorSequenceClock.period;
-	result = runContentMenu(colorSequenceLengthContent, result, COLOR_SEQUENCE_LENGTH_EXIT);
-	if (result >= MENU_START && result < COLOR_SEQUENCE_LENGTH_EXIT) 
-		{colorSequenceClock.period = result;}
+	while (result != COLOR_SEQUENCE_LENGTH_EXIT)
+	{
+		result = runContentMenu(colorSequenceLengthContent, result, COLOR_SEQUENCE_LENGTH_EXIT);
+		if (result >= MENU_START && result < COLOR_SEQUENCE_LENGTH_EXIT) 
+			{colorSequenceClock.period = result;}
+	}
 }
 
 char* colorBehaviorMenuContent(int pos)
@@ -981,7 +981,7 @@ void colorBehaviorMenu()
 	while (result != COLOR_BEHAVIOR_EXIT)
 	{
 		result = runContentMenu(colorBehaviorMenuContent, result, COLOR_BEHAVIOR_EXIT);
-		if		(result >= COLOR_BEHAVIOR_SOLID		)	{colorBehaviorMode = 	result;}
+		if		(result == COLOR_BEHAVIOR_SOLID		)	{colorBehaviorMode = 	result;}
 		else if (result == COLOR_BEHAVIOR_SEQUENCE	)	{colorBehaviorMode = 	result; colorSequenceLengthMenu();}
 		else if (result == COLOR_BEHAVIOR_RAINBOW	)	{colorBehaviorMode = 	result;} // rainbow driven by a counter signal
 		else if (result == COLOR_BEHAVIOR_RANDOM	)	{colorBehaviorMode = 	result;} // random has no control
@@ -1023,7 +1023,6 @@ char* brightnessMenuContent(int pos)
 		char* buffer = itoa(brightnessMode, tempChar, 10);
 		byte i = 7; //length of brightness
 		byte len = strlen(buffer);
-		//lcdPrint(itoa(i, tempChar, 10));
 		byte j = 0;
 		while (j < len) {
 			tempstring[i] = buffer[j];
@@ -1047,13 +1046,13 @@ void brightnessMenu()
 	{
 		result = runValueMenu(result, 5, BRIGHT_MINIMUM, BRIGHT_MAXIMUM, MENU_BEHAVIOR_STOP, BRIGHT_EXIT);
 		if (result >= BRIGHT_MINIMUM && result <= BRIGHT_MAXIMUM)
-			{showMenuContent(brightnessMenuContent, result); brightnessMode = result;}	
+			{brightnessMode = result; showMenuContent(brightnessMenuContent, result);}	
 	}
 }
 
 char* speedMenuContent(int pos)
 {
-	if 		(pos == SPEED_TITLE	)	{return("How Active?"			);}
+	if 		(pos == SPEED_TITLE	)	{return("I'm in the mood for"	);}
 	else if (pos == SPEED_1		)	{return("Mellow"				);}
 	else if (pos == SPEED_2		)	{return("Normal"				);}
 	else if (pos == SPEED_3		)	{return("Busy"					);}
@@ -1086,17 +1085,16 @@ char* mainMenuContent(int pos)
 }
 void mainMenu()
 {
-	byte	result = mainMode;
+	int	result = mainMode;
 	while (result != MAIN_EXIT)
 	{
 		result = runContentMenu(mainMenuContent, result, MAIN_EXIT);
-		if		(result == MAIN_PATTERN		) {patternMenu();}
-		else if (result == MAIN_COLOR		) {colorMenu();}
-		else if (result == MAIN_SPEED		) {speedMenu();		}
-		else if (result == MAIN_BRIGHTNESS	) {brightnessMenu();		}
-		else if (result == MAIN_EXIT		) {lcdClearScreen();	} //clean up after menu
-		else {}
+		if		(result == MAIN_PATTERN		) {mainMode = result; patternMenu();}
+		else if (result == MAIN_COLOR		) {mainMode = result; colorMenu();}
+		else if (result == MAIN_SPEED		) {mainMode = result; speedMenu();		}
+		else if (result == MAIN_BRIGHTNESS	) {mainMode = result; brightnessMenu();		}
 	}
+	lcdClearScreen();
 }
 
 void setup ()
