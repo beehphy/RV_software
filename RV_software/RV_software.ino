@@ -200,11 +200,12 @@ static byte PROGMEM custom5x8[][5] = { // A place for custom characters
 	{ 0x00, 0x00, 0x00, 0x00, 0x00 },  // Space
 	{ 0x7f, 0x41, 0x41, 0x41, 0x7f }   // ?
 };
-
-byte   lcdRow      = 0;
-byte   lcdColumn   = 0;
 #define MIN(x, y) x < y ? x : y;
-//#define MAX(x, y) x > y ? x : y;
+#define MAX(x, y) x > y ? x : y;
+
+byte lcdRow      = 0;
+byte lcdColumn   = 0;
+char tempChar [MAX_COLS]; // char width of OLED display
 
 void twiInit(void)
 {
@@ -442,6 +443,12 @@ void displayBattery (byte line)
 	}
 	twiStop();
 }	
+void lcdPintInt (int val, byte line)
+{
+	lcdClearLine(line);
+	lcdSetPos(line,0);
+	lcdPrint(itoa(val, tempChar, 10));
+}
 
 //Menu stuff ***********************************************************************
 Encoder knob(ENCODER_A, ENCODER_B);
@@ -451,6 +458,7 @@ Encoder knob(ENCODER_A, ENCODER_B);
 #define MENU_START 1
 #define MENU_TITLE -1
 #define MENU_SIZE -2
+#define MENU_EXIT -3
 
 enum menuBehavior
 {
@@ -532,7 +540,7 @@ enum colorHSVvalues
 	COLOR_HSV_END		= 255,
 	COLOR_HSV_WHITE		,
 	COLOR_HSV_CUSTOM	,
-	COLOR_HSV_EXIT		,
+	COLOR_HSV_EXIT		= MENU_EXIT,
 	COLOR_HSV_SIZE = MENU_SIZE
 	};
 enum colorSelectModes {
@@ -568,10 +576,14 @@ byte patternMode  = MENU_START;
 byte colorMode = MENU_START;
 byte colorBehaviorMode = MENU_START;
 //byte colorSeqeunceLength = MENU_START; in colorSequenceClock.period now
-HSV globalColorHSV[LEDS]; 
+HSV globalColorHSV[LEDS] = {
+	{COLOR_HSV_BLUE, 255, 127, COLOR_SELECT_BLUE},
+	{COLOR_HSV_GREEN, 255, 127, COLOR_SELECT_GREEN},
+	{COLOR_HSV_ORANGE, 255, 127, COLOR_SELECT_ORANGE},
+	{COLOR_HSV_SKY, 255, 127, COLOR_SELECT_SKY}
+}; 
 //byte speedMode = MENU_START; in colorSequenceClock.rate now
-byte brightnessMode = MENU_START;
-char tempChar [MAX_COLS]; // char width of OLED display
+byte brightnessMode = 0;
 Clock patternClock = {1,10,1}; //something
 Clock patternRenderClock = {1, 100, SPEED_3};
 Clock colorSequenceClock = {1,4,1};
@@ -734,10 +746,12 @@ int runContentMenu(char* (*useMenu)(int), int menuPos, byte menuExit)
 	}
 	return(menuExit);  //result = timeout
 }
-int runValueMenu (byte startingValue, int increment, int minimum, int maximum, byte rolloverBOOL, byte menuExit)
+int runValueMenu (char* (*useMenu)(int), byte startingValue, int increment, int minimum, int maximum, byte rolloverBOOL, int menuExit)
 {
 	buttonDebounce();
 	int tempINT = int(startingValue);
+	showMenuTitle(useMenu, MENU_TITLE);
+	showMenuContent(useMenu, tempINT);
 	long oldKnob, newKnob; //vars for dealing with encoder
 	oldKnob = newKnob = knob.read(); //initial values
 	long menuTimeout = MENU_TIMEOUT; //countdown timeout
@@ -751,16 +765,10 @@ int runValueMenu (byte startingValue, int increment, int minimum, int maximum, b
 			tempINT += increment;
 			if (tempINT > maximum) 
 			{
-				if (rolloverBOOL)
-				{
-					tempINT = minimum;
-				}
-				else
-				{
-					tempINT = maximum;
-				}
+				if (rolloverBOOL)	{	tempINT = minimum;	}
+				else				{	tempINT = maximum;	}
 			}
-			return(byte(tempINT));
+			showMenuContent(useMenu, tempINT);
 		}
 		else if(newKnob >= oldKnob+DIAL_DETENT)
 		{
@@ -769,49 +777,31 @@ int runValueMenu (byte startingValue, int increment, int minimum, int maximum, b
 			tempINT -= increment;
 			if (tempINT < minimum)
 			{
-				if (rolloverBOOL)
-				{
-					tempINT = maximum;
-				}
-				else
-				{
-					tempINT = minimum;
-				}
+				if (rolloverBOOL)	{	tempINT = maximum;	}
+				else				{	tempINT = minimum;	}
 			}
-			return(byte(tempINT));	
+			showMenuContent(useMenu, tempINT);
 		}
-		if (digitalRead(PUSH_BUTTON) == 0) //was pressed return current selection
-		{
-			return(menuExit);  //result = timeout no change
-		}
+		if (digitalRead(PUSH_BUTTON)) {menuTimeout--;}//not pressed count down to timeout
+		else {buttonDebounce(); return(tempINT);}  //result value selected, return current selection
 		delay(MENU_DELAY);
-		menuTimeout--;
 	}
 	return(menuExit);  //result = timeout no change
 };
 
 Clock& clockUpdate(Clock& clockInUse)
 {
-// 	if (clockInUse.direction) // if positive
-// 	{
-		clockInUse.time += clockInUse.rate; //rate can be negative number
-		if (clockInUse.time > clockInUse.period) {clockInUse.time -= clockInUse.period + 1;}
-// 	}
-// 	else 
-// 	{
-// 		clockInUse.time -= clockInUse.rate; 
- 		if (clockInUse.time < 0)				{clockInUse.time += clockInUse.period + 1;}
+	clockInUse.time += clockInUse.rate; //rate can be negative number
+	if (clockInUse.time > clockInUse.period) {clockInUse.time -= clockInUse.period + 1;}
+ 	if (clockInUse.time < 0)				 {clockInUse.time += clockInUse.period + 1;}
 }
 uint8_t patternRender(int ledNumber)
 {
 	return(0);
 }
-HSV& colorRandomHSV(int ledNumber)
+HSV& colorRandomHSV()
 {
-	HSV tempHSV;
-	tempHSV.s = 255;
-	tempHSV.v = 127;
-	tempHSV.h = rand();
+	HSV tempHSV = {rand(), rand(), 255};
 	return(tempHSV);
 }
 HSV& colorSequenceRender(int ledNumber)
@@ -827,10 +817,10 @@ RGB& colorValueRender(uint8_t intensity,  int ledNumber)
 	HSV tempHSV;
 	tempHSV.s = 255;
 	tempHSV.v = 127;
-	if		(colorMode == COLOR_BEHAVIOR_SOLID		) {tempHSV.h = globalColorHSV[ledNumber].h;}
+	if		(colorMode == COLOR_BEHAVIOR_SOLID		) {tempHSV = globalColorHSV[ledNumber];}
 	else if (colorMode == COLOR_BEHAVIOR_SEQUENCE	) {tempHSV = colorSequenceRender(ledNumber);}
 	else if (colorMode == COLOR_BEHAVIOR_RAINBOW	) {tempHSV.h = globalColorHSV[ledNumber].h + rainbowClock.time;}
-	else if (colorMode == COLOR_BEHAVIOR_RANDOM		) {tempHSV = colorRandomHSV(ledNumber);}
+	else if (colorMode == COLOR_BEHAVIOR_RANDOM		) {tempHSV = colorRandomHSV();}
 	//else if (result == COLOR_SELECT_WHITE					) {tempHSV.v = 255; tempHSV.s = 0;}
 	RGB tempRGB = hsvToRgb(tempHSV);
 	tempRGB.r = (tempRGB.r * intensity) / 255;
@@ -882,12 +872,13 @@ void patternMenu()
 
 char* customColorMenuContent(int pos)
 {
-	if 		(pos == COLOR_HSV_TITLE	)	{return("Dial that color in!"		);}
-	else if (pos >= BRIGHT_MINIMUM && pos <= BRIGHT_MAXIMUM	)
+	if 		(pos == COLOR_HSV_TITLE		)	{return("Dial in that color!"	);}
+	else if (pos == COLOR_HSV_SIZE		)	{return("255"					);} //100%
+	else if (pos >= COLOR_HSV_RED && pos <= COLOR_HSV_END	)
 	{
 		//build a string based on global brightness
 		char* tempstring = "Hue: "; // room for value render
-		char* buffer = itoa(globalIntensity, tempChar, 10);
+		char* buffer = itoa(pos, tempChar, 10);
 		byte i = 5; //length of hue:
 		byte len = strlen(buffer);
 		byte j = 0;
@@ -899,19 +890,18 @@ char* customColorMenuContent(int pos)
 		tempstring[i] = NULL;
 		return(	tempstring	);
 	}
-	else if (pos == BRIGHT_SIZE		)	{return("100"					);} //100%
-	else								{return(errorMessage()			);}
+	else									{return(errorMessage()			);}
 }
 HSV& customColorMenu (HSV& underChange) //pick a color hue with the dial
 {
 	int	result = underChange.h;
-	showMenuTitle(customColorMenuContent, COLOR_HSV_TITLE);
-	while (result != BRIGHT_EXIT)
+	while (result != COLOR_HSV_EXIT)
 	{
-		result = runValueMenu(result, 1, COLOR_HSV_RED, COLOR_HSV_END, MENU_BEHAVIOR_LOOP, COLOR_HSV_EXIT);
-		if (result >= BRIGHT_MINIMUM && result <= BRIGHT_MAXIMUM	)
-		{showMenuContent(customColorMenuContent, result); brightnessMode = result;}
+		result = runValueMenu(customColorMenuContent, result, 1, COLOR_HSV_RED, COLOR_HSV_END, MENU_BEHAVIOR_LOOP, COLOR_HSV_EXIT);
+		if (result >= COLOR_HSV_RED && result <= COLOR_HSV_END)
+			{underChange.h = result; underChange.s = 255; underChange.v = 255; underChange.hsvMode = COLOR_SELECT_CUSTOM;}
 	}
+	return(underChange);
 }
 
 char* colorSelectContent(int pos)
@@ -932,14 +922,25 @@ char* colorSelectContent(int pos)
 	else if (pos == COLOR_SELECT_MENU_SIZE			)	{return(	"12"					);}
 	else												{return(	"Custom Color"			);}
 }
-HSV& colorSelectMenu(HSV& underChange) //uint8_t *colorSpace)
+HSV& colorSelectMenu(HSV& underChange) 
 {
 	int result = underChange.hsvMode;
+	underChange.v = 255;
 	while (result != COLOR_SELECT_EXIT)
 	{
 		result = runContentMenu(colorSelectContent, result, COLOR_SELECT_EXIT);
-		if		(result == COLOR_SELECT_CUSTOM								) {underChange.hsvMode = result; underChange = customColorMenu(underChange);}
-		else if	(result >= COLOR_SELECT_RED	&& result <= COLOR_SELECT_EXIT	) {underChange.hsvMode = result;}
+		if		(result == COLOR_SELECT_CUSTOM		) {underChange = customColorMenu(underChange); result = COLOR_SELECT_EXIT;} //custom menu with force quit
+		else if	(result == COLOR_SELECT_RED			) {underChange.hsvMode = result; underChange.h = COLOR_HSV_RED;			underChange.s = 255;}
+		else if	(result == COLOR_SELECT_ORANGE		) {underChange.hsvMode = result; underChange.h = COLOR_HSV_ORANGE;		underChange.s = 255;}
+		else if	(result == COLOR_SELECT_YELLOW		) {underChange.hsvMode = result; underChange.h = COLOR_HSV_YELLOW;		underChange.s = 255;}
+		else if	(result == COLOR_SELECT_GREEN		) {underChange.hsvMode = result; underChange.h = COLOR_HSV_GREEN;		underChange.s = 255;}
+		else if	(result == COLOR_SELECT_TEAL		) {underChange.hsvMode = result; underChange.h = COLOR_HSV_TEAL;		underChange.s = 255;}
+		else if	(result == COLOR_SELECT_BLUE		) {underChange.hsvMode = result; underChange.h = COLOR_HSV_BLUE;		underChange.s = 255;}
+		else if	(result == COLOR_SELECT_SKY			) {underChange.hsvMode = result; underChange.h = COLOR_HSV_SKY;			underChange.s = 255;}
+		else if	(result == COLOR_SELECT_VIOLET		) {underChange.hsvMode = result; underChange.h = COLOR_HSV_VIOLET;		underChange.s = 255;}
+		else if	(result == COLOR_SELECT_PINK		) {underChange.hsvMode = result; underChange.h = COLOR_HSV_PINK;		underChange.s = 255;}
+		else if	(result == COLOR_SELECT_WHITE		) {underChange.hsvMode = result; underChange.h = COLOR_HSV_WHITE;		underChange.s = 0;}
+		else if	(result == COLOR_SELECT_RAINBOW_ROLL) {underChange.hsvMode = result; /* underChange.h is set by randomHSV*/ underChange.s = 255;}
 	}
 	return(underChange);
 }
@@ -990,7 +991,7 @@ void colorBehaviorMenu()
 
 char* colorMenuContent(int pos)
 {
-	if 		(pos ==	COLOR_TITLE		)		{return(	"We are changing:"	);}
+	if 		(pos ==	COLOR_TITLE		)		{return(	"Lets change"	);}
 	else if (pos ==	COLOR_BEHAVIOR	)		{return(	"Color Behavior"	);}
 	else if (pos ==	COLOR_GLOBAL1	)		{return(	"Color 1"			);}
 	else if (pos ==	COLOR_GLOBAL2	)		{return(	"Color 2"			);}
@@ -1015,12 +1016,12 @@ void colorMenu()
 
 char* brightnessMenuContent(int pos)
 {
-	if 		(pos == BRIGHT_TITLE	)	{return("Global Dimming:"		);}
+	if 		(pos == BRIGHT_TITLE	)	{return("Global brightness"		);}
 	else if (pos >= BRIGHT_MINIMUM && pos <= BRIGHT_MAXIMUM	)	
 	{	
 		//build a string based on global brightness
 		char* tempstring = "Level: "; // room for value render
-		char* buffer = itoa(brightnessMode, tempChar, 10);
+		char* buffer = itoa(pos, tempChar, 10);
 		byte i = 7; //length of brightness
 		byte len = strlen(buffer);
 		byte j = 0;
@@ -1040,26 +1041,26 @@ char* brightnessMenuContent(int pos)
 void brightnessMenu()
 {
 	int	result = brightnessMode;
-	showMenuTitle(brightnessMenuContent, BRIGHT_TITLE);
-	showMenuContent(brightnessMenuContent, result);
+// 	showMenuTitle(brightnessMenuContent, BRIGHT_TITLE);
+// 	showMenuContent(brightnessMenuContent, result);
 	while (result != BRIGHT_EXIT)
 	{
-		result = runValueMenu(result, 5, BRIGHT_MINIMUM, BRIGHT_MAXIMUM, MENU_BEHAVIOR_STOP, BRIGHT_EXIT);
+		result = runValueMenu(brightnessMenuContent, result, 5, BRIGHT_MINIMUM, BRIGHT_MAXIMUM, MENU_BEHAVIOR_STOP, BRIGHT_EXIT);
 		if (result >= BRIGHT_MINIMUM && result <= BRIGHT_MAXIMUM)
-			{brightnessMode = result; showMenuContent(brightnessMenuContent, result);}	
+			{brightnessMode = result; }	
 	}
 }
 
 char* speedMenuContent(int pos)
 {
-	if 		(pos == SPEED_TITLE	)	{return("I'm in the mood for"	);}
-	else if (pos == SPEED_1		)	{return("Mellow"				);}
-	else if (pos == SPEED_2		)	{return("Normal"				);}
-	else if (pos == SPEED_3		)	{return("Busy"					);}
-	else if (pos == SPEED_4		)	{return("Dance Party"			);}
-	else if (pos == SPEED_5		)	{return("Seizure"				);}
-	else if (pos == SPEED_SIZE	)	{return("5"						);}
-	else							{return(errorMessage()			);}
+	if 		(pos == SPEED_TITLE	)	{return("I'm ready for"	);}
+	else if (pos == SPEED_1		)	{return("a Chill Space"		);}
+	else if (pos == SPEED_2		)	{return("Mood lighting"		);}
+	else if (pos == SPEED_3		)	{return("a Light Show"		);}
+	else if (pos == SPEED_4		)	{return("a Dance Party"		);}
+	else if (pos == SPEED_5		)	{return("a Seizure"			);}
+	else if (pos == SPEED_SIZE	)	{return("5"					);}
+	else							{return(errorMessage()		);}
 }
 void speedMenu()
 {
