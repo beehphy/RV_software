@@ -25,7 +25,7 @@ typedef struct {
 	byte h;
 	byte s;
 	byte v;
-	byte hsvMode;
+	int hsvMode;
 } HSV;
 typedef struct {
 	int time;
@@ -44,18 +44,20 @@ typedef struct {
 
 //Hardware defines ***********************************************************************
 #define LEDS				4
-#define PIN_RED1			2	//LED OUTPUT
-#define PIN_GREEN1			3	//LED OUTPUT
-#define PIN_BLUE1			4	//LED OUTPUT
-#define PIN_RED2			5	//LED OUTPUT
-#define PIN_GREEN2			6	//LED OUTPUT
-#define PIN_BLUE2			7	//LED OUTPUT
-#define PIN_RED3			8	//LED OUTPUT
-#define PIN_GREEN3			9	//LED OUTPUT
-#define PIN_BLUE3			10	//LED OUTPUT
-#define PIN_RED4			11	//LED OUTPUT
-#define PIN_GREEN4			12	//LED OUTPUT
-#define PIN_BLUE4			13	//LED OUTPUT
+#define FRAME_RATE			30
+#define RENDER_RATE			1000 / FRAME_RATE
+#define PIN_RED1			4//2	//LED OUTPUT
+#define PIN_GREEN1			2//3	//LED OUTPUT
+#define PIN_BLUE1			3//4	//LED OUTPUT
+#define PIN_RED2			7//5	//LED OUTPUT
+#define PIN_GREEN2			5//6	//LED OUTPUT
+#define PIN_BLUE2			6//7	//LED OUTPUT
+#define PIN_RED3			10//8	//LED OUTPUT
+#define PIN_GREEN3			8//9	//LED OUTPUT
+#define PIN_BLUE3			9//10	//LED OUTPUT
+#define PIN_RED4			13//11	//LED OUTPUT
+#define PIN_GREEN4			11//12	//LED OUTPUT
+#define PIN_BLUE4			12//13	//LED OUTPUT
 #define ENCODER_A			A8	
 #define ENCODER_B			A9
 #define PUSH_BUTTON			A10
@@ -446,24 +448,15 @@ Encoder knob(ENCODER_A, ENCODER_B);
 #define MENU_DELAY 2
 #define MENU_TIMEOUT 2000 
 #define DIAL_DETENT 4 //for blue type knob, 2 for green type knob
-#define MENU_TITLE 0
+#define MENU_TITLE -1
 #define MENU_START 1
-#define MENU_SIZE 255
+#define MENU_SIZE -2
 
-Output leds[LEDS]; 
-byte globalIntensity = 0x40; // should be eeprom loads
-byte mainMode = MENU_START;
-byte patternMode  = MENU_START;
-byte colorMode = MENU_START;
-byte colorBehaviorMode = MENU_START;
-byte colorSeqeunceLength = MENU_START;
-HSV globalColorHSV[LEDS];
-byte speedMode = MENU_START;
-byte brightnessMode = MENU_START;
-char tempChar [10];
-Clock patternClock = {1,10,1}; //something
-Clock rainbowClock = {5,255,-1}; //time, per, rate
-
+enum menuBehavior
+{
+	MENU_BEHAVIOR_STOP,
+	MENU_BEHAVIOR_LOOP
+	};
 enum mainModes {
 	MAIN_TITLE			= MENU_TITLE,
 	MAIN_PATTERN		= MENU_START,
@@ -504,15 +497,15 @@ enum colorModes
 	COLOR_EXIT									,
 	COLOR_MENU_SIZE					= MENU_SIZE
 };
-enum patterLengthModes
+enum colorSequenceLengthModes
 {
-	PATTERN_LENGTH_TITLE						= MENU_TITLE,
-	PATTERN_LENGTH_1							= MENU_START,
-	PATTERN_LENGTH_2										,
-	PATTERN_LENGTH_3										,
-	PATTERN_LENGTH_4										,
-	PATTERN_LENGTH_EXIT										,
-	PATTERN_LENGTH_MENU_SIZE					= MENU_SIZE
+	COLOR_SEQUENCE_LENGTH_TITLE			= MENU_TITLE,
+	COLOR_SEQUENCE_LENGTH_1				= MENU_START,
+	COLOR_SEQUENCE_LENGTH_2							,
+	COLOR_SEQUENCE_LENGTH_3							,
+	COLOR_SEQUENCE_LENGTH_4							,
+	COLOR_SEQUENCE_LENGTH_EXIT						,
+	COLOR_SEQUENCE_LENGTH_MENU_SIZE		= MENU_SIZE
 };
 enum colorBehaviorModes
 {
@@ -524,6 +517,24 @@ enum colorBehaviorModes
 	COLOR_BEHAVIOR_EXIT									,
 	COLOR_BEHAVIOR_MENU_SIZE				= MENU_SIZE
 };
+enum colorHSVvalues 
+{
+	COLOR_HSV_TITLE		= MENU_TITLE,
+	COLOR_HSV_RED		= 0,
+	COLOR_HSV_ORANGE	= 15,
+	COLOR_HSV_YELLOW	= 30,
+	COLOR_HSV_GREEN		= 86,
+	COLOR_HSV_TEAL		= 105,
+	COLOR_HSV_BLUE		= 150,
+	COLOR_HSV_SKY		= 172,
+	COLOR_HSV_VIOLET	= 190,
+	COLOR_HSV_PINK		= 234,
+	COLOR_HSV_END		= 255,
+	COLOR_HSV_WHITE		,
+	COLOR_HSV_CUSTOM	,
+	COLOR_HSV_EXIT		,
+	COLOR_HSV_SIZE = MENU_SIZE
+	};
 enum colorSelectModes {
 	COLOR_SELECT_TITLE				= MENU_TITLE,
 	COLOR_SELECT_RED				= MENU_START,
@@ -544,18 +555,28 @@ enum colorSelectModes {
 enum brightnessModes
 {
 	BRIGHT_TITLE				= MENU_TITLE,
-	BRIGHT_1					= MENU_START,
-	BRIGHT_2								,
-	BRIGHT_3								,
-	BRIGHT_4								,
-	BRIGHT_5								,
-	BRIGHT_6								,
-	BRIGHT_7								,
-	BRIGHT_8								,
+	BRIGHT_MINIMUM				= 1			,//1%
+	BRIGHT_MAXIMUM				= 100		,//100%
 	BRIGHT_EXIT								,
 	BRIGHT_SIZE					= MENU_SIZE
 };
 
+Output leds[LEDS]; 
+byte globalIntensity = 0x40; // should be eeprom loads
+byte mainMode = MENU_START;
+byte patternMode  = MENU_START;
+byte colorMode = MENU_START;
+byte colorBehaviorMode = MENU_START;
+//byte colorSeqeunceLength = MENU_START; in colorSequenceClock.period now
+HSV globalColorHSV[LEDS]; 
+//byte speedMode = MENU_START; in colorSequenceClock.rate now
+byte brightnessMode = MENU_START;
+char tempChar [MAX_COLS]; // char width of OLED display
+Clock patternClock = {1,10,1}; //something
+Clock patternRenderClock = {1, 100, SPEED_3};
+Clock colorSequenceClock = {1,4,1};
+Clock colorRenderClock = {1, 100, SPEED_3};
+Clock rainbowClock = {5, 255, -1}; //time, per, rate
 
 RGB& hsvToRgb(HSV& input)
 {
@@ -665,20 +686,21 @@ int a2i(char *s)
 	}
 	return num;
 }
-void showMenu  (char* (*useMenu)(byte), byte pos)
+void showMenu  (char* (*useMenu)(int), int pos)
 {
 	lcdClearLine(1);
-	lcdSetPos(1, 0);
+	lcdSetPos(1, 3);
+	lcdPrint(">> ");
  	lcdPrint(useMenu(pos));
 }
-void showTitle (char* (*useMenu)(byte), byte pos)
+void showTitle (char* (*useMenu)(int), int pos)
 {
 	lcdClearLine(0);
 	lcdSetPos(0, 0);
 	lcdPrint(useMenu(pos));
 	displayBattery(3);
 }
-byte runMenu(char* (*useMenu)(byte), byte menuPos)
+int runMenu(char* (*useMenu)(int), int menuPos, byte menuExit)
 {
 	buttonDebounce();
 	char* menuSizePtr = useMenu(MENU_SIZE); 
@@ -711,19 +733,15 @@ byte runMenu(char* (*useMenu)(byte), byte menuPos)
 		else {buttonDebounce();	return(menuPos);}  //was pressed return current selection
   		delay(MENU_DELAY);
 	}
-	return(MENU_TITLE);  //result = timeout
+	return(menuExit);  //result = timeout
 }
-byte customValueSelectMenu (byte startingValue, int increment, int minimum, int maximum, byte rolloverBOOL)
+int customValueSelectMenu (char* (*useMenu)(int), byte startingValue, int increment, int minimum, int maximum, byte rolloverBOOL, byte menuExit)
 {
 	buttonDebounce();
-	//char tempChar[5]; //needed for itoa
 	int tempINT = int(startingValue);
-	HSV tempHSV = {startingValue, 255, 127};
 	long oldKnob, newKnob; //vars for dealing with encoder
 	oldKnob = newKnob = knob.read(); //initial values
 	long menuTimeout = MENU_TIMEOUT; //countdown timeout
-	lcdClearLine(1);
-	lcdPrint(itoa(tempINT, tempChar, 10));
 	while (menuTimeout != 0)
 	{
 		newKnob = knob.read();
@@ -743,10 +761,7 @@ byte customValueSelectMenu (byte startingValue, int increment, int minimum, int 
 					tempINT = maximum;
 				}
 			}
-			lcdClearLine(1);
-			lcdPrint(itoa(tempINT, tempChar, 10));
-			lcdPrint("     ");
-			//updateLEDsColorSingle(tempHSV);
+			return(byte(tempINT));
 		}
 		else if(newKnob >= oldKnob+DIAL_DETENT)
 		{
@@ -763,15 +778,12 @@ byte customValueSelectMenu (byte startingValue, int increment, int minimum, int 
 				{
 					tempINT = minimum;
 				}
-			}lcdSetPos(1,0);
-			lcdPrint(itoa(tempINT, tempChar, 10));
-			lcdPrint("     ");
-			//updateLEDsColorSingle(tempHSV);	
+			}
+			return(byte(tempINT));	
 		}
 		if (digitalRead(PUSH_BUTTON) == 0) //was pressed return current selection
 		{
-			buttonDebounce(); 
-			return(byte(tempINT));  //result = timeout no change
+			return(menuExit);  //result = timeout no change
 		}
 		delay(MENU_DELAY);
 		menuTimeout--;
@@ -795,120 +807,10 @@ Clock& clockUpdate(Clock& clockInUse)
 // 		clockInUse.time -= clockInUse.rate; 
  		if (clockInUse.time < 0)				{clockInUse.time += clockInUse.period + 1;}
 }
-
-
-
-//pattern  menu	
-char* patternMenuContent(byte pos)
-{
-	if 		(pos ==	PATTERN_TITLE			)		{return(	"Pattern Menu:"		);}
-	else if (pos == PATTERN_SOLID			)		{return(	"Static"			);}
-	else if (pos == PATTERN_FADES			)		{return(	"Fading"			);}
-	else if (pos ==	PATTERN_PULSE			)		{return(	"Pulses"			);}
-	else if (pos ==	PATTERN_HEARTBEAT		)		{return(	"Heartbeat"			);}
-	else if (pos ==	PATTERN_SIZE			)		{return(	"4"					);}
-	else											{return(	errorMessage()		);}
-}
-void patternMenu()
-{
-	byte	result = patternMode;
-	while (result != PATTERN_EXIT && result != MENU_TITLE)
-	{
-  		result = runMenu(patternMenuContent, result);
-  		if (result >= MENU_START && result < PATTERN_EXIT) {patternMode = result;}
-  		else {}
-	}
-}
 uint8_t patternRender(int ledNumber)
 {
 	return(0);
 }
-
-char* colorSequenceLengthContent(byte pos)
-{
-	if 		(pos ==	PATTERN_LENGTH_TITLE		)	{return(	"How many colors in the loop?"		);}
-	else if (pos == PATTERN_LENGTH_1			)	{return(	"One"			);}
-	else if (pos == PATTERN_LENGTH_2			)	{return(	"Two"			);}
-	else if (pos ==	PATTERN_LENGTH_3			)	{return(	"Three"			);}
-	else if (pos ==	PATTERN_LENGTH_4			)	{return(	"Four"			);}
-	else if (pos ==	PATTERN_LENGTH_MENU_SIZE	)	{return(	"4"				);}
-	else											{return(	errorMessage()		);}
-}
-void colorSequenceLengthMenu()
-{
-	byte	result =colorSeqeunceLength;
-		result = runMenu(colorSequenceLengthContent, result);
-		if (result >= MENU_START && result < PATTERN_EXIT) {patternMode = result;}
-		else {}
-}
-
-int customColorMenu (int startHue) //pick a color hue with the dial
-{
-	HSV tempHSV;
-	tempHSV.s = 255;
-	tempHSV.v = 127;
-//	tempHSV.h = valueMenu(tempHSV.h);
-//	char tempChar[5]; //needed for itoa
-//	int result = valueMenu(&tempHSV.h,3,0,255,1);
-	return(0);
-}
-char* colorSelectContent(byte pos)
-{
-	if 		(pos == COLOR_SELECT_TITLE				)	{return(	"Choose a Color:"		);}
-	else if (pos == COLOR_SELECT_RED				)	{return(	"Red"					);}
-	else if (pos == COLOR_SELECT_ORANGE				)	{return(	"Orange"				);}
-	else if (pos == COLOR_SELECT_YELLOW				)	{return(	"Yellow"				);}
-	else if (pos == COLOR_SELECT_GREEN				)	{return(	"Green"					);}
-	else if (pos == COLOR_SELECT_TEAL				)	{return(	"Teal"					);}
-	else if (pos == COLOR_SELECT_BLUE				)	{return(	"Blue"					);}
-	else if (pos == COLOR_SELECT_SKY				)	{return(	"Sky"					);}
-	else if (pos == COLOR_SELECT_VIOLET				)	{return(	"Violet"				);}
-	else if (pos == COLOR_SELECT_PINK				)	{return(	"Pink"					);}
-	else if (pos == COLOR_SELECT_WHITE				)	{return(	"White"					);}
-	else if (pos == COLOR_SELECT_CUSTOM				)	{return(	"Custom Color"			);}
-	else if (pos == COLOR_SELECT_RAINBOW_ROLL		)	{return(	"Rainbow"				);}
-	else if (pos == COLOR_SELECT_MENU_SIZE			)	{return(	"11"					);}
-	else												{return(	errorMessage()			);}
-}
-char* colorSelectContentSmall(byte pos)
-{
-	if		(pos == COLOR_SELECT_RED		)	{return("Red"			);}
-	else if (pos == COLOR_SELECT_ORANGE		)	{return("Org"			);}
-	else if (pos == COLOR_SELECT_YELLOW		)	{return("Yel"			);}
-	else if (pos == COLOR_SELECT_GREEN		)	{return("Grn"			);}
-	else if (pos == COLOR_SELECT_TEAL		)	{return("Tea"			);}
-	else if (pos == COLOR_SELECT_BLUE		)	{return("Blu"			);}
-	else if (pos == COLOR_SELECT_SKY		)	{return("Sky"			);}
-	else if (pos == COLOR_SELECT_VIOLET		)	{return("Vlt"			);}
-	else if (pos == COLOR_SELECT_PINK		)	{return("Pnk"			);}
-	else if (pos == COLOR_SELECT_WHITE		)	{return("Wht"			);}
-	else if (pos == COLOR_SELECT_CUSTOM		)	{return("Cst"			);}
-	else if (pos == COLOR_SELECT_MENU_SIZE	)	{return("11"			);}
-	else										{return(errorMessage()	);}
-}
-RGB& colorSelectMenu(byte startHue) //uint8_t *colorSpace)
-{
-	HSV tempHSV = {startHue, 255, 127};
-	byte result = MENU_START;
-	while (result != COLOR_SELECT_EXIT && result != MENU_TITLE)
-	{
-		result = runMenu(colorSelectContent, result);
-		if		(result == COLOR_SELECT_RED						) {tempHSV.h = 0;}
-		else if (result == COLOR_SELECT_ORANGE					) {tempHSV.h = 15;}
-		else if (result == COLOR_SELECT_YELLOW					) {tempHSV.h = 30;}
-		else if (result == COLOR_SELECT_GREEN					) {tempHSV.h = 86;}
-		else if (result == COLOR_SELECT_TEAL					) {tempHSV.h = 105;}
-		else if (result == COLOR_SELECT_BLUE					) {tempHSV.h = 150;}
-		else if (result == COLOR_SELECT_SKY						) {tempHSV.h = 172;}
-		else if (result == COLOR_SELECT_VIOLET					) {tempHSV.h = 190;}
-		else if (result == COLOR_SELECT_PINK					) {tempHSV.h = 234;}
-		else if (result == COLOR_SELECT_WHITE					) {tempHSV.v = 255; tempHSV.s = 0;}
-		else if (result == COLOR_SELECT_CUSTOM					) {tempHSV.h = customColorMenu(tempHSV.h);}
-//	updateLEDsColorSingle(tempHSV);
-	}
-	return(hsvToRgb(tempHSV));
-}
-
 HSV& colorRandomHSV(int ledNumber)
 {
 	HSV tempHSV;
@@ -922,10 +824,10 @@ HSV& colorSequenceRender(int ledNumber)
 	HSV tempHSV;
 	tempHSV.s = 255;
 	tempHSV.v = 127;
-//	if (colorMode == COLOR_SELECT_CUSTOM) {tempHSV.h = leds[ledNumber].customColor;} 
+	//	if (colorMode == COLOR_SELECT_CUSTOM) {tempHSV.h = leds[ledNumber].customColor;}
 	return(tempHSV);
 }
-RGB& colorValueRender(uint8_t intensity,  int ledNumber) 
+RGB& colorValueRender(uint8_t intensity,  int ledNumber)
 {
 	HSV tempHSV;
 	tempHSV.s = 255;
@@ -934,121 +836,13 @@ RGB& colorValueRender(uint8_t intensity,  int ledNumber)
 	else if (colorMode == COLOR_BEHAVIOR_SEQUENCE	) {tempHSV = colorSequenceRender(ledNumber);}
 	else if (colorMode == COLOR_BEHAVIOR_RAINBOW	) {tempHSV.h = globalColorHSV[ledNumber].h + rainbowClock.time;}
 	else if (colorMode == COLOR_BEHAVIOR_RANDOM		) {tempHSV = colorRandomHSV(ledNumber);}
+	//else if (result == COLOR_SELECT_WHITE					) {tempHSV.v = 255; tempHSV.s = 0;}
 	RGB tempRGB = hsvToRgb(tempHSV);
 	tempRGB.r = (tempRGB.r * intensity) / 255;
 	tempRGB.g = (tempRGB.g * intensity) / 255;
 	tempRGB.b = (tempRGB.b * intensity) / 255;
 	return(tempRGB);
 }
-
-char* colorBehaviorMenuContent(byte pos)
-{
-	if 		(pos == COLOR_BEHAVIOR_TITLE			)	{return(	"Color Behavior:"		);}
-	else if (pos == COLOR_BEHAVIOR_SOLID			)	{return(	"Static"				);}
-	else if (pos == COLOR_BEHAVIOR_SEQUENCE			)	{return(	"Sequence"				);}
-	else if (pos == COLOR_BEHAVIOR_RAINBOW			)	{return(	"Rainbow"				);}
-	else if (pos == COLOR_BEHAVIOR_RANDOM			)	{return(	"Random"				);}
-	else if (pos == COLOR_BEHAVIOR_MENU_SIZE		)	{return(	"4"					);}
-	else												{return(	errorMessage()			);}
-}
-void colorBehaviorMenu()
-{
-	byte	result = colorMode;
-	while (result != MAIN_EXIT && result != MENU_TITLE)
-	{
-		result = runMenu(colorBehaviorMenuContent, result);
-		if		(result >= COLOR_BEHAVIOR_SOLID		)	{colorMode = 	result;}
-		else if (result == COLOR_BEHAVIOR_SEQUENCE	)	{colorMode = 	result;}
-		else if (result == COLOR_BEHAVIOR_RAINBOW	)	{colorMode = 	result;} // rainbow driven by a counter signal
-		else if (result == COLOR_BEHAVIOR_RANDOM	)	{colorMode = 	result;} // random has no control
-		else									{	} //clean up after menu
-	}
-}
-
-// brightness routines
-char* brightnessMenuContent(byte pos)
-{
-	if 		(pos == BRIGHT_TITLE	)	{return("Brightness Menu:"		);}
-	else if (pos == BRIGHT_1		)	{return("Brightness 100%"		);}
-	else if (pos == BRIGHT_2		)	{return("Brightness 80%"		);}
-	else if (pos == BRIGHT_3		)	{return("Brightness 60%"		);}
-	else if (pos == BRIGHT_4		)	{return("Brightness 40%"		);}
-	else if (pos == BRIGHT_5		)	{return("Brightness 30%"		);}
-	else if (pos == BRIGHT_6		)	{return("Brightness 20%"		);}
-	else if (pos == BRIGHT_7		)	{return("Brightness 10%"		);}
-	else if (pos == BRIGHT_8		)	{return("Brightness 5%"			);}
-	else if (pos == BRIGHT_EXIT		)	{return(exitMessage()			);}
-	else if (pos == BRIGHT_SIZE		)	{return("9"						);}
-	else								{return(errorMessage()			);}
-}
-void brightnessMenu()
-{
-	byte	result = brightnessMode;
-	while (result != BRIGHT_EXIT && result != MENU_TITLE)
-	{
-		result = runMenu(brightnessMenuContent, result);
-		if		(result == BRIGHT_1)  {brightnessMode = result; globalIntensity = 0xff;}
-		else if (result == BRIGHT_2)  {brightnessMode = result; globalIntensity = 0x80;}
-		else if (result == BRIGHT_3)  {brightnessMode = result; globalIntensity = 0x50;}
-		else if (result == BRIGHT_4)  {brightnessMode = result; globalIntensity = 0x30;}
-		else if (result == BRIGHT_5)  {brightnessMode = result; globalIntensity = 0x24;}
-		else if (result == BRIGHT_6)  {brightnessMode = result; globalIntensity = 0x18;}
-		else if (result == BRIGHT_7)  {brightnessMode = result; globalIntensity = 0x10;}
-		else if (result == BRIGHT_8)  {brightnessMode = result; globalIntensity = 0x08;}
-		else {}
-	}
-}
-
-char* speedMenuContent(byte pos)
-{
-	if 		(pos == SPEED_TITLE	)	{return("How Active?"			);}
-	else if (pos == SPEED_1		)	{return("Mellow"				);}
-	else if (pos == SPEED_2		)	{return("Normal"				);}
-	else if (pos == SPEED_3		)	{return("Busy"					);}
-	else if (pos == SPEED_4		)	{return("Dance Party"			);}
-	else if (pos == SPEED_5		)	{return("Seizure"				);}
-	else if (pos == SPEED_SIZE	)	{return("5"						);}
-	else							{return(errorMessage()			);}
-}
-void speedMenu()
-{
-	byte	result = brightnessMode;
-	while (result != BRIGHT_EXIT && result != MENU_TITLE)
-	{
-		result = runMenu(brightnessMenuContent, result);
-		if		(result >= SPEED_1 && result <= SPEED_5)  {speedMode = result;}
-		else {}
-	}
-}
-
-//main menu
-char* mainMenuContent(byte pos)
-{
-	if 		(pos ==	MAIN_TITLE			)		{return(	"Lets change the"	);}
-	else if (pos == MAIN_PATTERN		)		{return(	"Patterns"			);}
-	else if (pos == MAIN_COLOR			)		{return(	"Colors"			);}
-	else if (pos ==	MAIN_BRIGHTNESS		)		{return(	"Brightness"		);}
-	else if (pos ==	MAIN_EXIT			)		{return(	exitMessage()		);}
-	else if (pos ==	MAIN_SIZE			)		{return(	"4"					);}
-	else										{return(	errorMessage()		);}
-}
-
-void mainMenu()
-{
-	byte	result = mainMode;
-	while (result != MAIN_EXIT && result != MENU_TITLE)
-	{
-		result = runMenu(mainMenuContent, result);
-		if		(result == MAIN_PATTERN		) {}//patternMenu();		}
-		else if (result == MAIN_PATTERN		) {}//colorBehaviorMenu();		}
-		else if (result == MAIN_COLOR		) {}//speedMenu();		}
-		else if (result == MAIN_SPEED	) {}//brightnessMenu();		}
-		else if (result == MAIN_BRIGHTNESS	) {}//brightnessMenu();		}
-		else if (result == MAIN_EXIT		) {lcdClearScreen();	} //clean up after menu
-		else {}
-	}
-}
-
 void render ()
 {
 	//clockUpdate();
@@ -1066,6 +860,246 @@ void render ()
 	}
 	updateLedOutputs();
 }
+
+//pattern  menu	
+char* patternMenuContent(int pos)
+{
+	if 		(pos ==	PATTERN_TITLE			)		{return(	"Pattern Menu:"		);}
+	else if (pos == PATTERN_SOLID			)		{return(	"Static"			);}
+	else if (pos == PATTERN_FADES			)		{return(	"Fading"			);}
+	else if (pos ==	PATTERN_PULSE			)		{return(	"Pulses"			);}
+	else if (pos ==	PATTERN_HEARTBEAT		)		{return(	"Heartbeat"			);}
+	else if (pos ==	PATTERN_SIZE			)		{return(	"4"					);}
+	else											{return(	errorMessage()		);}
+}
+void patternMenu()
+{
+	int	result = patternMode;
+	while (result != PATTERN_EXIT && result != MENU_TITLE)
+	{
+  		result = runMenu(patternMenuContent, result, PATTERN_EXIT);
+  		if (result >= MENU_START && result < PATTERN_EXIT) {patternMode = result;}
+  		else {}
+	}
+}
+
+char* customColorMenuContent(int pos)
+{
+	if 		(pos == COLOR_HSV_TITLE	)	{return("Custom Color:"		);}
+	else if (pos >= BRIGHT_MINIMUM && pos <= BRIGHT_MAXIMUM	)
+	{
+		//build a string based on global brightness
+		char tempstring [MAX_COLS + 1] = "Hue: "; // room for value render
+		char* buffer = itoa(globalIntensity, tempChar, 10);
+		byte i = 5; //length of hue:
+		byte len = strlen(buffer);
+		byte j = 0;
+		while (i < len) {
+			tempstring[i] = buffer[j];
+			j++;
+			i++;
+		}
+		tempstring[i] = '\n';
+		return(	tempstring	);
+	}
+	else if (pos == BRIGHT_SIZE		)	{return("100"					);} //100%
+	else								{return(errorMessage()			);}
+}
+HSV& customColorMenu (HSV& underChange) //pick a color hue with the dial
+{
+	buttonDebounce();
+	int	result = underChange.h;
+	showTitle(customColorMenuContent, BRIGHT_TITLE);
+	while (result != BRIGHT_EXIT)
+	{
+		result = customValueSelectMenu(customColorMenuContent, result, 1, COLOR_HSV_RED, COLOR_HSV_END, MENU_BEHAVIOR_LOOP, COLOR_HSV_EXIT);
+		if (result >= BRIGHT_MINIMUM && result <= BRIGHT_MAXIMUM	)
+		{showMenu(customColorMenuContent, result); brightnessMode = result;}
+	}
+}
+
+char* colorSelectContent(int pos)
+{
+	if 		(pos == COLOR_SELECT_TITLE				)	{return(	"Choose a Color:"		);}
+	else if (pos == COLOR_SELECT_RED				)	{return(	"Red"					);}
+	else if (pos == COLOR_SELECT_ORANGE				)	{return(	"Orange"				);}
+	else if (pos == COLOR_SELECT_YELLOW				)	{return(	"Yellow"				);}
+	else if (pos == COLOR_SELECT_GREEN				)	{return(	"Green"					);}
+	else if (pos == COLOR_SELECT_TEAL				)	{return(	"Teal"					);}
+	else if (pos == COLOR_SELECT_BLUE				)	{return(	"Blue"					);}
+	else if (pos == COLOR_SELECT_SKY				)	{return(	"Sky"					);}
+	else if (pos == COLOR_SELECT_VIOLET				)	{return(	"Violet"				);}
+	else if (pos == COLOR_SELECT_PINK				)	{return(	"Pink"					);}
+	else if (pos == COLOR_SELECT_WHITE				)	{return(	"White"					);}
+	else if (pos == COLOR_SELECT_CUSTOM				)	{return(	"Custom Color"			);}
+	else if (pos == COLOR_SELECT_RAINBOW_ROLL		)	{return(	"Rainbow"				);}
+	else if (pos == COLOR_SELECT_MENU_SIZE			)	{return(	"12"					);}
+	else												{return(	"Custom Color"			);}
+}
+HSV& colorSelectMenu(HSV& underChange) //uint8_t *colorSpace)
+{
+	int result = underChange.hsvMode;
+	while (result != COLOR_SELECT_EXIT)
+	{
+		result = runMenu(colorSelectContent, result, COLOR_SELECT_EXIT);
+		if		(result == COLOR_SELECT_CUSTOM								) {underChange.hsvMode = result; underChange = customColorMenu(underChange);}
+		else if	(result >= COLOR_SELECT_RED	&& result <= COLOR_SELECT_EXIT	) {underChange.hsvMode = result;}
+	}
+	return(underChange);
+}
+
+
+char* colorSequenceLengthContent(int pos)
+{
+	if 		(pos ==	COLOR_SEQUENCE_LENGTH_TITLE		)	{return(	"How many colors in the loop?"		);}
+	else if (pos == COLOR_SEQUENCE_LENGTH_1			)	{return(	"One"			);}
+	else if (pos == COLOR_SEQUENCE_LENGTH_2			)	{return(	"Two"			);}
+	else if (pos ==	COLOR_SEQUENCE_LENGTH_3			)	{return(	"Three"			);}
+	else if (pos ==	COLOR_SEQUENCE_LENGTH_4			)	{return(	"Four"			);}
+	else if (pos ==	COLOR_SEQUENCE_LENGTH_MENU_SIZE	)	{return(	"4"				);}
+	else												{return(	errorMessage()		);}
+}
+void colorSequenceLengthMenu()
+{
+	int	result = colorSequenceClock.period;
+	result = runMenu(colorSequenceLengthContent, result, COLOR_SEQUENCE_LENGTH_EXIT);
+	if (result >= MENU_START && result < COLOR_SEQUENCE_LENGTH_EXIT) 
+		{colorSequenceClock.period = result;}
+}
+
+char* colorBehaviorMenuContent(int pos)
+{
+	if 		(pos == COLOR_BEHAVIOR_TITLE			)	{return(	"Color Behavior:"		);}
+	else if (pos == COLOR_BEHAVIOR_SOLID			)	{return(	"Static"				);}
+	else if (pos == COLOR_BEHAVIOR_SEQUENCE			)	{return(	"Sequence"				);}
+	else if (pos == COLOR_BEHAVIOR_RAINBOW			)	{return(	"Rainbow"				);}
+	else if (pos == COLOR_BEHAVIOR_RANDOM			)	{return(	"Random"				);}
+	else if (pos == COLOR_BEHAVIOR_MENU_SIZE		)	{return(	"4"					);}
+	else												{return(	errorMessage()			);}
+}
+void colorBehaviorMenu()
+{
+	int	result = colorMode;
+	while (result != MAIN_EXIT && result != MENU_TITLE)
+	{
+		result = runMenu(colorBehaviorMenuContent, result, COLOR_BEHAVIOR_EXIT);
+		if		(result >= COLOR_BEHAVIOR_SOLID		)	{colorMode = 	result;}
+		else if (result == COLOR_BEHAVIOR_SEQUENCE	)	{colorMode = 	result; colorSequenceLengthMenu();}
+		else if (result == COLOR_BEHAVIOR_RAINBOW	)	{colorMode = 	result;} // rainbow driven by a counter signal
+		else if (result == COLOR_BEHAVIOR_RANDOM	)	{colorMode = 	result;} // random has no control
+	}
+}
+
+char* colorContent(int pos)
+{
+	if 		(pos ==	COLOR_TITLE		)		{return(	"We are changing:"	);}
+	else if (pos ==	COLOR_BEHAVIOR	)		{return(	"Color Behavior"	);}
+	else if (pos ==	COLOR_GLOBAL1	)		{return(	"Color 1"			);}
+	else if (pos ==	COLOR_GLOBAL2	)		{return(	"Color 2"			);}
+	else if (pos ==	COLOR_GLOBAL3	)		{return(	"Color 3"			);}
+	else if (pos ==	COLOR_GLOBAL4	)		{return(	"Color 4"			);}
+	else if (pos ==	COLOR_MENU_SIZE	)		{return(	"5"					);}
+	else									{return(	errorMessage()		);}
+}
+void colorMenu()
+{
+	int	result = colorMode;
+	while (result != COLOR_EXIT)
+	{
+		result = runMenu(patternMenuContent, result, COLOR_EXIT);
+		if		(result >= MENU_START && result < COLOR_EXIT	) {colorMode = result;}
+		if		(result == COLOR_BEHAVIOR						) {colorBehaviorMenu();}
+		else if (result == COLOR_GLOBAL1						) {globalColorHSV[0] = colorSelectMenu(globalColorHSV[0]);}
+		else if (result == COLOR_GLOBAL2						) {globalColorHSV[1] = colorSelectMenu(globalColorHSV[1]);}
+		else if (result == COLOR_GLOBAL3						) {globalColorHSV[2] = colorSelectMenu(globalColorHSV[2]);}
+		else if (result == COLOR_GLOBAL4						) {globalColorHSV[3] = colorSelectMenu(globalColorHSV[3]);}
+	}
+}
+
+char* brightnessMenuContent(int pos)
+{
+	if 		(pos == BRIGHT_TITLE	)	{return("Brightness Menu:"		);}
+	else if (pos >= BRIGHT_MINIMUM && pos <= BRIGHT_MAXIMUM	)	
+	{	
+		//build a string based on global brightness
+		char tempstring [MAX_COLS + 1] = "Brightness "; // room for value render
+		char* buffer = itoa(globalIntensity, tempChar, 10);
+		byte i = 11; //length of brightness
+		byte len = strlen(buffer);
+		byte j = 0;
+		while (i < len) {
+			tempstring[i] = buffer[j];
+			j++;
+			i++;
+		}
+		tempstring[i] = '\n';
+		return(	tempstring	);
+	}
+	else if (pos == BRIGHT_SIZE		)	{return("100"					);} //100%
+	else								{return(errorMessage()			);}
+}
+void brightnessMenu()
+{
+	buttonDebounce();
+	int	result = brightnessMode;
+	showTitle(brightnessMenuContent, BRIGHT_TITLE);
+	while (result != BRIGHT_EXIT)
+	{
+		result = customValueSelectMenu(brightnessMenuContent, brightnessMode, 2, BRIGHT_MINIMUM, BRIGHT_MAXIMUM, MENU_BEHAVIOR_STOP, BRIGHT_EXIT);
+		if (result >= BRIGHT_MINIMUM && result <= BRIGHT_MAXIMUM	)
+			{showMenu(brightnessMenuContent, result); brightnessMode = result;}	
+	}
+}
+
+char* speedMenuContent(int pos)
+{
+	if 		(pos == SPEED_TITLE	)	{return("How Active?"			);}
+	else if (pos == SPEED_1		)	{return("Mellow"				);}
+	else if (pos == SPEED_2		)	{return("Normal"				);}
+	else if (pos == SPEED_3		)	{return("Busy"					);}
+	else if (pos == SPEED_4		)	{return("Dance Party"			);}
+	else if (pos == SPEED_5		)	{return("Seizure"				);}
+	else if (pos == SPEED_SIZE	)	{return("5"						);}
+	else							{return(errorMessage()			);}
+}
+void speedMenu()
+{
+	int	result = colorRenderClock.rate;
+	while (result != SPEED_EXIT && result != MENU_TITLE)
+	{
+		result = runMenu(speedMenuContent, result, SPEED_EXIT);
+		if		(result >= SPEED_1 && result <= SPEED_5)  {colorRenderClock.rate = result;}
+		else {}
+	}
+}
+
+//main menu
+char* mainMenuContent(int pos)
+{
+	if 		(pos ==	MAIN_TITLE			)		{return(	"Lets change the"	);}
+	else if (pos == MAIN_PATTERN		)		{return(	"Patterns"			);}
+	else if (pos == MAIN_COLOR			)		{return(	"Colors"			);}
+	else if (pos == MAIN_SPEED			)		{return(	"Speed"				);}
+	else if (pos ==	MAIN_BRIGHTNESS		)		{return(	"Brightness"		);}
+	else if (pos ==	MAIN_EXIT			)		{return(	exitMessage()		);}
+	else if (pos ==	MAIN_SIZE			)		{return(	"4"					);}
+	else										{return(	errorMessage()		);}
+}
+void mainMenu()
+{
+	byte	result = mainMode;
+	while (result != MAIN_EXIT && result != MENU_TITLE)
+	{
+		result = runMenu(mainMenuContent, result, MAIN_EXIT);
+		if		(result == MAIN_PATTERN		) {patternMenu();}
+		else if (result == MAIN_COLOR		) {colorMenu();}
+		else if (result == MAIN_SPEED		) {}//speedMenu();		}
+		else if (result == MAIN_BRIGHTNESS	) {}//brightnessMenu();		}
+		else if (result == MAIN_EXIT		) {lcdClearScreen();	} //clean up after menu
+		else {}
+	}
+}
+
 
 void setup ()
 {
@@ -1126,10 +1160,6 @@ void setup ()
 void loop ()
 {
 	if (digitalRead(PUSH_BUTTON) == 0) {mainMenu(); buttonDebounce();  lcdClearScreen(); }
-	clockUpdate(rainbowClock);
-	lcdClearLine(3);
-	lcdSetPos(3,0);
-	lcdPrint(itoa(rainbowClock.time, tempChar, 10));
-	delay(500);	 
-	//updateLEDs();
+	delay(RENDER_RATE);	 
+	//render();
 }
