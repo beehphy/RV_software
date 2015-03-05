@@ -456,6 +456,7 @@ void lcdPintInt (int val, byte line)
 //Menu stuff ***********************************************************************
 Encoder knob(ENCODER_A, ENCODER_B);
 #define MENU_DELAY 1
+#define RENDER_LOOPS RENDER_RATE / MENU_DELAY
 #define MENU_TIMEOUT 3000 
 #define DIAL_DETENT 4 //for blue type knob, 2 for green type knob
 #define MENU_START 1
@@ -580,10 +581,10 @@ byte colorMode = COLOR_BEHAVIOR;
 byte colorBehaviorMode = COLOR_BEHAVIOR_RAINBOW;
 //byte colorSeqeunceLength = MENU_START; in colorSequenceClock.period now
 HSV globalColorHSV[LEDS] = {
-	{COLOR_HSV_BLUE, 255, 255, COLOR_SELECT_BLUE},
-	{COLOR_HSV_SKY, 255, 255, COLOR_SELECT_SKY},
-	{COLOR_HSV_VIOLET, 255, 255, COLOR_SELECT_VIOLET},
-	{COLOR_HSV_PINK, 255, 255, COLOR_SELECT_PINK}
+	{100, 255, 255, COLOR_SELECT_CUSTOM},
+	{120, 255, 255, COLOR_SELECT_CUSTOM},
+	{140, 255, 255, COLOR_SELECT_CUSTOM},
+	{160, 255, 255, COLOR_SELECT_CUSTOM}
 }; 
 //byte speedMode = MENU_START; in colorSequenceClock.rate now
 byte brightnessMode = 40;
@@ -717,6 +718,7 @@ void showMenuTitle (char* (*useMenu)(int), int pos)
 int runContentMenu(char* (*useMenu)(int), int menuPos, byte menuExit)
 {
 	buttonDebounce();
+	byte renderLoops = RENDER_LOOPS;
 	char* menuSizePtr = useMenu(MENU_SIZE); 
 	int menuSize = a2i(menuSizePtr); // turn text returned by menu into a number 
 	showMenuTitle(useMenu, MENU_TITLE); //load menu title
@@ -746,12 +748,15 @@ int runContentMenu(char* (*useMenu)(int), int menuPos, byte menuExit)
   		if (digitalRead(PUSH_BUTTON)) {menuTimeout--;} // keep counting down
 		else {buttonDebounce();	return(menuPos);}  //was pressed return current selection
   		delay(MENU_DELAY);
+		if (renderLoops) {renderLoops--;}
+			else {render(); renderLoops = RENDER_LOOPS;}
 	}
 	return(menuExit);  //result = timeout
 }
 int runValueMenu (char* (*useMenu)(int), byte startingValue, int increment, int minimum, int maximum, byte rolloverBOOL, int menuExit)
 {
 	buttonDebounce();
+	byte renderLoops = RENDER_LOOPS;
 	int tempINT = int(startingValue);
 	showMenuTitle(useMenu, MENU_TITLE);
 	showMenuContent(useMenu, tempINT);
@@ -788,6 +793,8 @@ int runValueMenu (char* (*useMenu)(int), byte startingValue, int increment, int 
 		if (digitalRead(PUSH_BUTTON)) {menuTimeout--;}//not pressed count down to timeout
 		else {buttonDebounce(); return(tempINT);}  //result value selected, return current selection
 		delay(MENU_DELAY);
+		if (renderLoops) {renderLoops--;}
+		else {render(); renderLoops = RENDER_LOOPS;}
 	}
 	return(menuExit);  //result = timeout no change
 };
