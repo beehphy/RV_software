@@ -1,7 +1,7 @@
 // RV led controller - Jesse Banks
 // 2/23/15
 
-//#include <eeprom.h>
+#include <eeprom.h>
 #include <Arduino.h>
 #include <Encoder.h>
 #include <avr/pgmspace.h>
@@ -17,8 +17,8 @@ typedef struct {
 	byte bluePin;
 } Output;
 typedef struct {
-	byte g;
 	byte r;
+	byte g;
 	byte b;
 } RGB;
 typedef struct {
@@ -57,6 +57,8 @@ typedef struct {
 #define LEDS				4
 #define FRAME_RATE			30
 #define RENDER_RATE			1000 / FRAME_RATE
+#define DIAGNOSTIC
+#define DIAGNOSTIC_RENDER_RATE (RENDER_RATE * 70 / 100)
 #define MAX_BRIGHTNESS		300 // MAX_BRIGHTNESS * SCALE_ACCURACY < 32768
 #define SCALE_ACCURACY		100
 #define PIN_RED1			4//2	//LED OUTPUT
@@ -293,6 +295,7 @@ void lcdInit(void)
 	twiSendCmd(OLED_ACTIVE); // --turn on oled panel
 	
 	twiStop();
+	lcdClearScreen();
 }
 void lcdSetPos(byte row, byte column)
 {
@@ -591,29 +594,55 @@ enum brightnessModes
 	BRIGHT_EXIT								,
 	BRIGHT_SIZE					= MENU_SIZE
 };
+enum eepromAdresses
+{
+	EEPROM_MAIN_MODE,
+	EEPROM_PATTERN_MODE,
+	EEPROM_COLOR_MODE,
+	EEPROM_COLOR_BEHAVIOR_MODE,
+	EEPROM_COLOR_SEQUENCE_LENGTH,
+	EEPROM_SPEED_MODE,
+	EEPROM_BRIGHTNESS_MODE,
+	EEPROM_GLOBAL1_HSV_MODE,
+	EEPROM_GLOBAL2_HSV_MODE,
+	EEPROM_GLOBAL3_HSV_MODE,
+	EEPROM_GLOBAL4_HSV_MODE,
+	EEPROM_GLOBAL1_H_MODE,
+	EEPROM_GLOBAL2_H_MODE,
+	EEPROM_GLOBAL3_H_MODE,
+	EEPROM_GLOBAL4_H_MODE,
+	EEPROM_SAFE_CHECK,
+	EEPROM_SAFE_CHECK_VALUE = 0xA5
+	};
 
-Output leds[LEDS]; 
-int globalIntensity; // should be eeprom loads
+int globalIntensity; // should be rendered
 byte mainMode = MAIN_COLOR;
 byte patternMode  = PATTERN_SOLID;
 byte colorMode = COLOR_BEHAVIOR;
 byte colorBehaviorMode = COLOR_BEHAVIOR_SOLID;
-byte speedMode = 0 ;
-byte brightnessMode = 40;
+byte speedMode = SPEED_3;
+byte brightnessMode = 5;
 //byte colorSeqeunceLength = MENU_START; in colorSequenceClock.period now
-HSV globalColorHSV[LEDS] = {
-	{COLOR_HSV_RED, 255, 255, COLOR_SELECT_RED},
-	{COLOR_HSV_GREEN, 255, 255, COLOR_SELECT_GREEN},
-	{COLOR_HSV_BLUE, 255, 255, COLOR_SELECT_BLUE},
-	{COLOR_HSV_RAINBOW, 255, 255, COLOR_SELECT_RAINBOW}
-}; 
 //byte speedMode = MENU_START; in colorSequenceClock.rate now
-//time, per, rate
-Clock colorRenderClock = {1, 100, 1, 1};
-Clock patternRenderClock = {1, 100, 1, 0};
-Clock patternClock = {1,10,1, 0}; //something
-Clock colorSequenceClock = {1, COLOR_SEQUENCE_LENGTH_4, 1, 0};
-Clock rainbowClock = {5, 255, -5, 0}; 
+Clock colorRenderClock = {1, 100, 1, 1}; //simple init for safe clock operation
+Clock patternRenderClock = {1, 100, 1, 0}; //simple init for safe clock operation
+Clock patternClock = {1, 10, 1, 0}; //simple init for safe clock operation
+Clock colorSequenceClock = {1, 4, 1, 0}; //used by color sequence to know which color to display
+#define RAINBOW_CLOCK_DIVISOR 4
+#define RAINBOW_CLOCK_LENGTH (255 * RAINBOW_CLOCK_DIVISOR)
+Clock rainbowClock = {1, RAINBOW_CLOCK_LENGTH, 1, 0}; //correct init
+Output leds[LEDS] = {
+	{0, 0, 0, PIN_RED1, PIN_GREEN1, PIN_BLUE1},
+	{0, 0, 0, PIN_RED2, PIN_GREEN2, PIN_BLUE2},
+	{0, 0, 0, PIN_RED3, PIN_GREEN3, PIN_BLUE3},
+	{0, 0, 0, PIN_RED4, PIN_GREEN4, PIN_BLUE4}
+	}; 
+HSV globalColorHSV[LEDS] = {
+	{COLOR_HSV_RED,		255, 255, COLOR_SELECT_RED		},
+	{COLOR_HSV_GREEN,	255, 255, COLOR_SELECT_GREEN	},
+	{COLOR_HSV_BLUE,	255, 255, COLOR_SELECT_BLUE		},
+	{COLOR_HSV_RAINBOW, 255, 255, COLOR_SELECT_RAINBOW	}
+}; 
 Fade fadeSets [LEDS] = {
 //  {led, sr, sg, sb, er, eg, eb, ct, cp, cr, cr}
 	{0, 0, 0, 0, 0, 0, 0, 90, 100, 1, 0},
@@ -622,6 +651,129 @@ Fade fadeSets [LEDS] = {
 	{3, 0, 0, 0, 0, 0, 0, 90, 100, 1, 0}
 	};
 
+void eepromSavePattern ()
+{
+	EEPROM.write(EEPROM_PATTERN_MODE			,patternMode				);
+}
+void eepromSaveColors()
+{
+	EEPROM.write(EEPROM_COLOR_MODE				,colorMode					);
+	EEPROM.write(EEPROM_COLOR_BEHAVIOR_MODE		,colorBehaviorMode			);
+	EEPROM.write(EEPROM_COLOR_SEQUENCE_LENGTH	,colorSequenceClock.period	);
+	EEPROM.write(EEPROM_GLOBAL1_HSV_MODE		,globalColorHSV[0].hsvMode	);
+	EEPROM.write(EEPROM_GLOBAL2_HSV_MODE		,globalColorHSV[1].hsvMode	);
+	EEPROM.write(EEPROM_GLOBAL3_HSV_MODE		,globalColorHSV[2].hsvMode	);
+	EEPROM.write(EEPROM_GLOBAL4_HSV_MODE		,globalColorHSV[3].hsvMode	);
+	EEPROM.write(EEPROM_GLOBAL1_H_MODE			,globalColorHSV[0].h		);
+	EEPROM.write(EEPROM_GLOBAL2_H_MODE			,globalColorHSV[1].h		);
+	EEPROM.write(EEPROM_GLOBAL3_H_MODE			,globalColorHSV[2].h		);
+	EEPROM.write(EEPROM_GLOBAL4_H_MODE			,globalColorHSV[3].h		);
+}
+void eepromSaveSpeed ()
+{
+	EEPROM.write(EEPROM_SPEED_MODE				,speedMode					);
+}
+void loadSpeedMode (byte mode)
+{
+		if		(mode == SPEED_1)	{speedMode = mode; colorRenderClock.period = 150; patternRenderClock.period = 150; rainbowClock.rate = 1;}
+		else if (mode == SPEED_2)	{speedMode = mode; colorRenderClock.period = 80; patternRenderClock.period = 80; rainbowClock.rate = 12;}
+		else if (mode == SPEED_3)	{speedMode = mode; colorRenderClock.period = 25; patternRenderClock.period = 30; rainbowClock.rate = 25;}
+		else if (mode == SPEED_4)	{speedMode = mode; colorRenderClock.period = 15; patternRenderClock.period = 18; rainbowClock.rate = 50;}
+		else if (mode == SPEED_5)	{speedMode = mode; colorRenderClock.period = 6; patternRenderClock.period = 5; rainbowClock.rate = 93;}
+}
+void eepromSaveBrightness ()
+{
+	EEPROM.write(EEPROM_BRIGHTNESS_MODE			,brightnessMode				); 
+}
+void eepromSaveDefaults()
+{
+	EEPROM.write(EEPROM_MAIN_MODE				,MAIN_PATTERN				);
+	EEPROM.write(EEPROM_PATTERN_MODE			,PATTERN_SOLID				);
+	EEPROM.write(EEPROM_COLOR_MODE				,COLOR_BEHAVIOR				);
+	EEPROM.write(EEPROM_COLOR_BEHAVIOR_MODE		,COLOR_BEHAVIOR_SOLID		);
+	EEPROM.write(EEPROM_COLOR_SEQUENCE_LENGTH	,COLOR_SEQUENCE_LENGTH_4	);
+	EEPROM.write(EEPROM_SPEED_MODE				,SPEED_3					);
+	EEPROM.write(EEPROM_BRIGHTNESS_MODE			,40							); 
+	EEPROM.write(EEPROM_GLOBAL1_HSV_MODE		,COLOR_SELECT_RED			);
+	EEPROM.write(EEPROM_GLOBAL2_HSV_MODE		,COLOR_SELECT_BLUE			);
+	EEPROM.write(EEPROM_GLOBAL3_HSV_MODE		,COLOR_SELECT_GREEN			);
+	EEPROM.write(EEPROM_GLOBAL4_HSV_MODE		,COLOR_SELECT_WHITE			);
+	EEPROM.write(EEPROM_GLOBAL1_H_MODE			,COLOR_HSV_RED				);
+	EEPROM.write(EEPROM_GLOBAL2_H_MODE			,COLOR_HSV_GREEN			); 
+	EEPROM.write(EEPROM_GLOBAL3_H_MODE			,COLOR_HSV_BLUE				); 
+	EEPROM.write(EEPROM_GLOBAL4_H_MODE			,COLOR_HSV_WHITE			); 
+	EEPROM.write(EEPROM_SAFE_CHECK				,EEPROM_SAFE_CHECK_VALUE	); 
+}
+void eepromLoad()
+{
+	byte check = EEPROM.read(EEPROM_SAFE_CHECK);
+	if (check != EEPROM_SAFE_CHECK_VALUE) {eepromSaveDefaults();}
+//	mainMode					= EEPROM.read(EEPROM_MAIN_MODE				);
+	patternMode					= EEPROM.read(EEPROM_PATTERN_MODE			);
+	colorBehaviorMode			= EEPROM.read(EEPROM_COLOR_BEHAVIOR_MODE	);
+	colorSequenceClock.period   = EEPROM.read(EEPROM_COLOR_SEQUENCE_LENGTH	);
+	speedMode					= EEPROM.read(EEPROM_SPEED_MODE				);
+	loadSpeedMode(speedMode);
+	brightnessMode				= EEPROM.read(EEPROM_BRIGHTNESS_MODE		);
+	globalColorHSV[0].hsvMode	= EEPROM.read(EEPROM_GLOBAL1_HSV_MODE		);//main color mode
+	globalColorHSV[1].hsvMode	= EEPROM.read(EEPROM_GLOBAL2_HSV_MODE		);
+	globalColorHSV[2].hsvMode	= EEPROM.read(EEPROM_GLOBAL3_HSV_MODE		);
+	globalColorHSV[3].hsvMode	= EEPROM.read(EEPROM_GLOBAL4_HSV_MODE		);
+	globalColorHSV[0].h			= EEPROM.read(EEPROM_GLOBAL1_H_MODE  		);//rainbow offsets or custom colors
+	globalColorHSV[1].h			= EEPROM.read(EEPROM_GLOBAL2_H_MODE  		);
+	globalColorHSV[2].h			= EEPROM.read(EEPROM_GLOBAL3_H_MODE  		);
+	globalColorHSV[3].h			= EEPROM.read(EEPROM_GLOBAL4_H_MODE  		);
+	
+}
+void memoryInit()
+{
+	byte i = 0;
+	while (i < LEDS)
+	{
+		if (globalColorHSV[i].hsvMode == COLOR_HSV_WHITE)	{globalColorHSV[i].s = 0;}
+		else												{globalColorHSV[i].s = 255;}
+		leds[i].r = 0;
+		leds[i].g = 0;
+		leds[i].b = 0;
+		i++;
+	}
+	eepromLoad();
+}
+void hardwareInit ()
+{
+	pinMode(	leds[0].redPin    , OUTPUT	);
+	analogWrite(leds[0].redPin    , 1		);
+	pinMode(	leds[0].greenPin  , OUTPUT	);
+	analogWrite(leds[0].greenPin  , 0		);
+	pinMode(	leds[0].bluePin   , OUTPUT	);
+	analogWrite(leds[0].bluePin   , 0		);
+	
+	pinMode(	leds[1].redPin    , OUTPUT	);
+	analogWrite(leds[1].redPin    , 0		);
+	pinMode(	leds[1].greenPin  , OUTPUT	);
+	analogWrite(leds[1].greenPin  , 1		);
+	pinMode(	leds[1].bluePin   , OUTPUT	);
+	analogWrite(leds[1].bluePin   , 0		);
+	
+	pinMode(	leds[2].redPin    , OUTPUT	);
+	analogWrite(leds[2].redPin    , 0		);
+	pinMode(	leds[2].greenPin  , OUTPUT	);
+	analogWrite(leds[2].greenPin  , 0		);
+	pinMode(	leds[2].bluePin   , OUTPUT	);
+	analogWrite(leds[2].bluePin   , 1		);
+	
+	pinMode(	leds[3].redPin    , OUTPUT	);
+	analogWrite(leds[3].redPin    , 1		);
+	pinMode(	leds[3].greenPin  , OUTPUT	);
+	analogWrite(leds[3].greenPin  , 1		);
+	pinMode(	leds[3].bluePin   , OUTPUT	);
+	analogWrite(leds[3].bluePin   , 1		);
+	
+	pinMode(PUSH_BUTTON, INPUT_PULLUP);
+	pinMode(OLED_R, OUTPUT);
+	digitalWrite(OLED_R, HIGH);
+	
+}
 RGB& hsvToRgb(HSV& input, RGB& tempRGB)
 {
 	//RGB tempRGB;
@@ -782,7 +934,7 @@ int runContentMenu(char* (*useMenu)(int), int menuPos, byte menuExit)
 	}
 	return(menuExit);  //result = timeout
 }
-int runValueMenu (char* (*useMenu)(int), byte startingValue, int increment, int minimum, int maximum, byte rolloverBOOL, int menuExit)
+int runValueMenu (char* (*useMenu)(int), byte startingValue, int increment, int minimum, int maximum, byte rolloverBOOL, int menuExit, byte colorDisplay)
 {
 	buttonDebounce();
 	byte renderLoops = RENDER_LOOPS;
@@ -823,7 +975,12 @@ int runValueMenu (char* (*useMenu)(int), byte startingValue, int increment, int 
 		else {buttonDebounce(); return(tempINT);}  //result value selected, return current selection
 		delay(MENU_DELAY);
 		if (renderLoops) {renderLoops--;}
-		else {updateLEDsColorSingle(tempINT); renderLoops = RENDER_LOOPS;}
+		else {
+			renderLoops = RENDER_LOOPS;
+			if (colorDisplay) {
+				updateLEDsColorSingle(tempINT); 
+			}
+		}
 	}
 	return(menuExit);  //result = timeout no change
 };
@@ -862,6 +1019,7 @@ Fade& fadeUpdateSequence(Fade& underChange, byte val)
 	underChange.startB = underChange.endB;
 	RGB tempRGB;
 	globalColorHSV[colorSequenceClock.time].v = val;
+	if (globalColorHSV[underChange.led].hsvMode == COLOR_SELECT_RAINBOW) {globalColorHSV[underChange.led].h = byte(rainbowClock.time / 4);}
 	hsvToRgb(globalColorHSV[colorSequenceClock.time], tempRGB);  // the clock changes with the fade color
 	underChange.endR = tempRGB.r;
 	underChange.endG = tempRGB.g;
@@ -909,11 +1067,6 @@ RGB& fadeRender(Fade& underChange, RGB& tempRGB, byte val)
 	return(tempRGB);
 }
 
-/*
-RGB& colorRandomSequenceRender (RGB& tempRGB)
-{
-	
-}*/
 byte patternRender(int ledNumber)
 {
 	return 255;	
@@ -934,15 +1087,14 @@ RGB& colorBalance (RGB& tempRGB)
 RGB& colorValueRender(int ledNumber, byte val, RGB& tempRGB)
 {
 	HSV tempHSV;
-	//RGB tempRGB;
 	tempHSV.v = val;
-	if		(colorBehaviorMode == COLOR_BEHAVIOR_SOLID		) 
+	if		(colorBehaviorMode == COLOR_BEHAVIOR_SOLID	) 
 	{	
-		if (globalColorHSV[ledNumber].hsvMode == COLOR_SELECT_RAINBOW) {tempHSV.h = globalColorHSV[ledNumber].h + rainbowClock.time; tempHSV.s = 255; hsvToRgb(tempHSV, tempRGB);}
+		if (globalColorHSV[ledNumber].hsvMode == COLOR_SELECT_RAINBOW) {tempHSV.h = globalColorHSV[ledNumber].h + byte(rainbowClock.time / RAINBOW_CLOCK_DIVISOR); tempHSV.s = 255; hsvToRgb(tempHSV, tempRGB);}
 		else {globalColorHSV[ledNumber].v = val; hsvToRgb(globalColorHSV[ledNumber], tempRGB);}
 	}
 	else if (colorBehaviorMode == COLOR_BEHAVIOR_SEQUENCE	) {fadeRender(fadeSets[ledNumber], tempRGB, val);}//colorSequenceRender(ledNumber, tempRGB);}
-	else if (colorBehaviorMode == COLOR_BEHAVIOR_RAINBOW	) {tempHSV.h = globalColorHSV[ledNumber].h + rainbowClock.time; tempHSV.s = 255; hsvToRgb(tempHSV, tempRGB);}
+	else if (colorBehaviorMode == COLOR_BEHAVIOR_RAINBOW	) {tempHSV.h = globalColorHSV[ledNumber].h + byte(rainbowClock.time / RAINBOW_CLOCK_DIVISOR); tempHSV.s = 255; hsvToRgb(tempHSV, tempRGB);}
 	else if (colorBehaviorMode == COLOR_BEHAVIOR_RANDOM		) {fadeRender(fadeSets[ledNumber], tempRGB, val);}//colorRandomSequenceRender(tempRGB);}
 	colorBalance(tempRGB);
 	return(tempRGB);
@@ -964,7 +1116,8 @@ void render()
 	}
 	updateLedOutputs();
 }
-void showFades ()
+
+void showDiagnostic ()
 {
 	byte i = 0;
 	while(i < 1)
@@ -1003,6 +1156,7 @@ void patternMenu()
   		if (result >= MENU_START && result < PATTERN_EXIT) {patternMode = result;}
   		else {}
 	}
+	EEPROM.write(EEPROM_PATTERN_MODE,patternMode);
 }
 
 char* customColorMenuContent(int pos)
@@ -1032,7 +1186,7 @@ HSV& customColorMenu (HSV& underChange) //pick a color hue with the dial
 	int	result = underChange.h;
 	while (result != COLOR_HSV_EXIT)
 	{
-		result = runValueMenu(customColorMenuContent, result, 1, COLOR_HSV_RED, COLOR_HSV_END, MENU_BEHAVIOR_LOOP, COLOR_HSV_EXIT);
+		result = runValueMenu(customColorMenuContent, result, 1, COLOR_HSV_RED, COLOR_HSV_END, MENU_BEHAVIOR_LOOP, COLOR_HSV_EXIT, 1);
 		if (result >= COLOR_HSV_RED && result <= COLOR_HSV_END)
 			{underChange.h = result; underChange.s = 255; underChange.v = 255; underChange.hsvMode = COLOR_SELECT_CUSTOM;}
 	}
@@ -1060,7 +1214,7 @@ char* colorSelectContent(int pos)
 HSV& colorSelectMenu(HSV& underChange) 
 {
 	int result = underChange.hsvMode;
-	underChange.v = 255;
+	//underChange.v = 255;
 	while (result != COLOR_SELECT_EXIT)
 	{
 		result = runContentMenu(colorSelectContent, result, COLOR_SELECT_EXIT);
@@ -1075,7 +1229,7 @@ HSV& colorSelectMenu(HSV& underChange)
 		else if	(result == COLOR_SELECT_VIOLET		) {underChange.hsvMode = result; underChange.h = COLOR_HSV_VIOLET;		underChange.s = 255;}
 		else if	(result == COLOR_SELECT_PINK		) {underChange.hsvMode = result; underChange.h = COLOR_HSV_PINK;		underChange.s = 255;}
 		else if	(result == COLOR_SELECT_WHITE		) {underChange.hsvMode = result; underChange.h = COLOR_HSV_WHITE;		underChange.s = 0;}
-		else if	(result == COLOR_SELECT_RAINBOW		) {underChange.hsvMode = result; underChange.h = COLOR_HSV_RAINBOW;		underChange.s = 255;}
+		else if	(result == COLOR_SELECT_RAINBOW		) {underChange.hsvMode = result; /*underChange.h = COLOR_HSV_RAINBOW;*/		underChange.s = 255;}
 	}
 	return(underChange);
 }
@@ -1099,6 +1253,11 @@ void colorSequenceLengthMenu()
 		if (result >= COLOR_SEQUENCE_LENGTH_1 && result <= COLOR_SEQUENCE_LENGTH_4) 
 			{colorSequenceClock.period = result; result = COLOR_SEQUENCE_LENGTH_EXIT;}
 	}
+	if (colorSequenceClock.period == COLOR_SEQUENCE_LENGTH_1)
+	{
+		colorSequenceClock.time = 0; // when length is 0 time does not change. must set
+	}
+	
 }
 
 char* colorBehaviorMenuContent(int pos)
@@ -1200,7 +1359,7 @@ void brightnessMenu()
 	int	result = brightnessMode;
 	while (result != BRIGHT_EXIT)
 	{
-		result = runValueMenu(brightnessMenuContent, result, BRIGHT_INCREMENT, BRIGHT_MINIMUM, BRIGHT_MAXIMUM, MENU_BEHAVIOR_STOP, BRIGHT_EXIT);
+		result = runValueMenu(brightnessMenuContent, result, BRIGHT_INCREMENT, BRIGHT_MINIMUM, BRIGHT_MAXIMUM, MENU_BEHAVIOR_STOP, BRIGHT_EXIT, 0);
 		if (result >= BRIGHT_MINIMUM && result <= BRIGHT_MAXIMUM)
 			{brightnessMode = result; }	
 	}
@@ -1223,12 +1382,7 @@ void speedMenu()
 	while (result != SPEED_EXIT)
 	{
 		result = runContentMenu(speedMenuContent, result, SPEED_EXIT);
-		if (result == SPEED_1)	{speedMode = result; colorRenderClock.period = 150; patternRenderClock.period = 150; rainbowClock.rate = 1;}
-		if (result == SPEED_2)	{speedMode = result; colorRenderClock.period = 80; patternRenderClock.period = 80; rainbowClock.rate = 2;}
-		if (result == SPEED_3)	{speedMode = result; colorRenderClock.period = 25; patternRenderClock.period = 30; rainbowClock.rate = 4;}
-		if (result == SPEED_4)	{speedMode = result; colorRenderClock.period = 15; patternRenderClock.period = 18; rainbowClock.rate = 6;}
-		if (result == SPEED_5)	{speedMode = result; colorRenderClock.period = 6; patternRenderClock.period = 5; rainbowClock.rate = 10;}
-		else {}
+		loadSpeedMode(result);
 	}
 }
 
@@ -1249,77 +1403,40 @@ void mainMenu()
 	while (result != MAIN_EXIT)
 	{
 		result = runContentMenu(mainMenuContent, result, MAIN_EXIT);
-		if		(result == MAIN_PATTERN		) {mainMode = result; patternMenu();}
-		else if (result == MAIN_COLOR		) {mainMode = result; colorMenu();}
-		else if (result == MAIN_SPEED		) {mainMode = result; speedMenu();		}
-		else if (result == MAIN_BRIGHTNESS	) {mainMode = result; brightnessMenu();		}
+		if		(result == MAIN_PATTERN		) {mainMode = result; patternMenu();	eepromSavePattern();	}
+		else if (result == MAIN_COLOR		) {mainMode = result; colorMenu();		eepromSaveColors();		}
+		else if (result == MAIN_SPEED		) {mainMode = result; speedMenu();		eepromSaveSpeed();		}
+		else if (result == MAIN_BRIGHTNESS	) {mainMode = result; brightnessMenu();	eepromSaveBrightness();	}
 	}
+	lcdClearScreen();
+}
+void splashScreen ()
+{
+	lcdSetPos(0,0);
+	lcdPrintln("Wes's RV Light Show");
+	lcdSetPos(2,33);
+	lcdPrint("By Jopel Designs");
+	delay(3000);
 	lcdClearScreen();
 }
 
 void setup ()
 {
-				leds[0].redPin    = PIN_RED1;
-	pinMode(	leds[0].redPin    , OUTPUT);
-	analogWrite(leds[0].redPin    , 1);
-				leds[0].greenPin  = PIN_GREEN1;
-	pinMode(	leds[0].greenPin  , OUTPUT);
-	analogWrite(leds[0].greenPin  , 0);
-				leds[0].bluePin   = PIN_BLUE1;
-	pinMode(	leds[0].bluePin   , OUTPUT);
-	analogWrite(leds[0].bluePin   , 0);
-		
-				leds[1].redPin    = PIN_RED2;
-	pinMode(	leds[1].redPin    , OUTPUT);
-	analogWrite(leds[1].redPin    , 0);
-				leds[1].greenPin  = PIN_GREEN2;
-	pinMode(	leds[1].greenPin  , OUTPUT);
-	analogWrite(leds[1].greenPin  , 1);
-				leds[1].bluePin   = PIN_BLUE2;
-	pinMode(	leds[1].bluePin   , OUTPUT);
-	analogWrite(leds[1].bluePin   , 0);
-		
-				leds[2].redPin    = PIN_RED3;
-	pinMode(	leds[2].redPin    , OUTPUT);
-	analogWrite(leds[2].redPin    , 0);
-				leds[2].greenPin  = PIN_GREEN3;
-	pinMode(	leds[2].greenPin  , OUTPUT);
-	analogWrite(leds[2].greenPin  , 0);
-				leds[2].bluePin   = PIN_BLUE3;
-	pinMode(	leds[2].bluePin   , OUTPUT);
-	analogWrite(leds[2].bluePin   , 1);
-			
-				leds[3].redPin    = PIN_RED4;
-	pinMode(	leds[3].redPin    , OUTPUT);
-	analogWrite(leds[3].redPin    , 2);
-				leds[3].greenPin  = PIN_GREEN4;
-	pinMode(	leds[3].greenPin  , OUTPUT);
-	analogWrite(leds[3].greenPin  , 2);
-				leds[3].bluePin   = PIN_BLUE4;
-	pinMode(	leds[3].bluePin   , OUTPUT);
-	analogWrite(leds[3].bluePin   , 2);
-		
- //EEPROM.write(address = bay_4_count, bay4Count = 0);
-  
-	pinMode(PUSH_BUTTON, INPUT_PULLUP);
-	pinMode(OLED_R, OUTPUT);
-	digitalWrite(OLED_R, HIGH);
-	lcdInit();
-    lcdClearScreen();
-    lcdSetPos(0,0);
-    lcdPrintln("Wes's RV Light Show");
-    lcdSetPos(2,33);
-    lcdPrint("By Jopel Designs");
-	delay(500);
-	lcdClearScreen();
+	memoryInit();
+	hardwareInit();	
+ 	lcdInit();
+    splashScreen();
 }
 void loop ()
 {
-	if (digitalRead(PUSH_BUTTON) == 0) {mainMenu(); buttonDebounce();  lcdClearScreen(); }
-	delay(RENDER_RATE);	 
-	//lcdPintInt(rainbowClock.time,2);
-	//clockUpdate(rainbowClock);
+	if (digitalRead(PUSH_BUTTON) == 0) {mainMenu(); buttonDebounce(); lcdClearScreen();}
+		
+#ifdef DIAGNOSTIC
+	showDiagnostic();
+	delay(DIAGNOSTIC_RENDER_RATE);
+#else
+ 	delay(RENDER_RATE); 
+#endif
+
 	render();
-	showFades();
-	
 }
