@@ -58,7 +58,7 @@ typedef struct {
 #define LEDS				4
 #define FRAME_RATE			30
 #define RENDER_RATE			1000 / FRAME_RATE
-#define DIAGNOSTIC
+//#define DIAGNOSTIC
 #define DIAGNOSTIC_RENDER_RATE (RENDER_RATE * 70 / 100)
 #define MAX_BRIGHTNESS		300 // MAX_BRIGHTNESS * SCALE_ACCURACY < 32768
 #define SCALE_ACCURACY		100
@@ -1211,7 +1211,9 @@ void render()
 	while (i < LEDS)
 	{
 		byte intenstiy = patternRender(i);
+#ifdef DIAGNOSTIC
 		lcdPrintHex(intenstiy, 3, 30 * i, 0);
+#endif
 		colorValueRender(i, intenstiy, tempRGB);
 		leds[i].r = byte((tempRGB.r * globalIntensity) / 255);
 		leds[i].g = byte((tempRGB.g * globalIntensity) / 255);
@@ -1278,6 +1280,7 @@ char* patternMenuContent(int pos)
 void patternMenu()
 {
 	int	result = patternMode;
+	if (result == PATTERN_EXIT) {	result = PATTERN_SOLID;}
 	while (result != PATTERN_EXIT)
 	{
   		result = runContentMenu(patternMenuContent, result, PATTERN_EXIT);
@@ -1342,6 +1345,7 @@ char* colorSelectContent(int pos)
 HSV& colorSelectMenu(HSV& underChange) 
 {
 	int result = underChange.hsvMode;
+	if (result >= MENU_START && result < COLOR_SELECT_EXIT) {	result = COLOR_SELECT_RED;}
 	//underChange.v = 255;
 	while (result != COLOR_SELECT_EXIT)
 	{
@@ -1375,6 +1379,7 @@ char* colorSequenceLengthContent(int pos)
 void colorSequenceLengthMenu()
 {
 	int	result = colorSequenceClock.period;
+	if (result == COLOR_SEQUENCE_LENGTH_EXIT) {	result = COLOR_SEQUENCE_LENGTH_4;}
 	while (result != COLOR_SEQUENCE_LENGTH_EXIT)
 	{
 		result = runContentMenu(colorSequenceLengthContent, result, COLOR_SEQUENCE_LENGTH_EXIT);
@@ -1404,6 +1409,7 @@ char* colorBehaviorMenuContent(int pos)
 void colorBehaviorMenu()
 {
 	int	result = colorBehaviorMode;
+	if (result == COLOR_BEHAVIOR_EXIT) {	result = COLOR_BEHAVIOR_SOLID;}
 	while (result != COLOR_BEHAVIOR_EXIT)
 	{
 		result = runContentMenu(colorBehaviorMenuContent, result, COLOR_BEHAVIOR_EXIT);
@@ -1455,6 +1461,7 @@ char* colorMenuContent(int pos)
 void colorMenu()
 {
 	int	result = colorMode;
+	if (result == COLOR_EXIT) {	result = COLOR_BEHAVIOR;}
 	while (result != COLOR_EXIT)
 	{
 		result = runContentMenu(colorMenuContent, result, COLOR_EXIT);
@@ -1523,6 +1530,7 @@ char* brightnessMenuContent(int pos)
 void brightnessMenu()
 {
 	int	result = brightnessMode;
+	if (result == BRIGHT_EXIT) {	result = BRIGHT_MINIMUM;}
 	while (result != BRIGHT_EXIT)
 	{
 		result = runValueMenu(brightnessMenuContent, result, BRIGHT_INCREMENT, BRIGHT_MINIMUM, BRIGHT_MAXIMUM, MENU_BEHAVIOR_STOP, BRIGHT_EXIT, 0);
@@ -1548,10 +1556,7 @@ char* speedMenuContent(int pos)
 void speedMenu()
 {
 	int	result = speedMode;
-	if (result == SPEED_EXIT)
-	{
-		result = SPEED_3;
-	}
+	if (result == SPEED_EXIT) {	result = SPEED_3;}
 	while (result != SPEED_EXIT)
 	{
 		result = runContentMenu(speedMenuContent, result, SPEED_EXIT);
