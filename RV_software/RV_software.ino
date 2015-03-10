@@ -520,8 +520,8 @@ enum speedModes
 	SPEED_1_PERIOD			= FRAME_RATE * 16		,	//larger is slower, 16 second fades
 	SPEED_2_PERIOD			= FRAME_RATE * 8		,	// 8 second
 	SPEED_3_PERIOD			= FRAME_RATE * 4		,	// 4 seconds
-	SPEED_4_PERIOD			= FRAME_RATE 		,	// 2every second
-	SPEED_5_PERIOD			= FRAME_RATE / 4			// 1 per second
+	SPEED_4_PERIOD			= FRAME_RATE 			,	// every second
+	SPEED_5_PERIOD			= FRAME_RATE / 4			// 4 per second
 };
 enum fadeModes
 {
@@ -1056,9 +1056,9 @@ HSV& colorRandomHSV(HSV& tempHSV)
 }
 Fade& fadeUpdateSequence(Fade& underChange)//, byte val)
 {
-	underChange.startR = underChange.endR;
-	underChange.startG = underChange.endG;
-	underChange.startB = underChange.endB;
+	underChange.startR = leds[underChange.led].r;// underChange.endR;
+	underChange.startG = leds[underChange.led].g;// underChange.endG;
+	underChange.startB = leds[underChange.led].b;// underChange.endB;
 	RGB tempRGB;
 	globalColorHSV[colorSequenceClock.time].v = 255;// val;
 	if (globalColorHSV[underChange.led].hsvMode == COLOR_SELECT_RAINBOW) {globalColorHSV[underChange.led].h = byte(rainbowClock.time / RAINBOW_CLOCK_DIVISOR);}
@@ -1078,9 +1078,9 @@ Fade& fadeUpdateSequence(Fade& underChange)//, byte val)
 }
 Fade& fadeUpdateRandom(Fade& underChange) //, byte val)
 {
-	underChange.startR = underChange.endR;
-	underChange.startG = underChange.endG;
-	underChange.startB = underChange.endB;
+	underChange.startR = leds[underChange.led].r;// underChange.endR;
+	underChange.startG = leds[underChange.led].g;// underChange.endG;
+	underChange.startB = leds[underChange.led].b;// underChange.endB;
 	HSV tempHSV;
 	colorRandomHSV(tempHSV);
 	tempHSV.v = 255; //val;
@@ -1090,7 +1090,8 @@ Fade& fadeUpdateRandom(Fade& underChange) //, byte val)
 	underChange.endG = tempRGB.g;
 	underChange.endB = tempRGB.b;
 	//underChange.CLK.period = rand() % (LONGEST_PERIOD - SHORTEST_PERIOD) + SHORTEST_PERIOD ;
-	underChange.CLK.period = rand() % patternRenderClock.period + patternRenderClock.period / 3;
+	underChange.CLK.period = (rand() % (patternRenderClock.period / patternRenderClock.rate / 2) )+ (patternRenderClock.period / patternRenderClock.rate / 4);
+//	lcdPrintInt(underChange.CLK.period, 3, 0, 1);
 	underChange.CLK.rate = 1;
 	underChange.CLK.time = 0;
 	underChange.CLK.rollover = 0;
@@ -1345,7 +1346,7 @@ char* colorSelectContent(int pos)
 HSV& colorSelectMenu(HSV& underChange) 
 {
 	int result = underChange.hsvMode;
-	if (result >= MENU_START && result < COLOR_SELECT_EXIT) {	result = COLOR_SELECT_RED;}
+	if (result == COLOR_SELECT_EXIT) {	result = COLOR_SELECT_RED;}
 	//underChange.v = 255;
 	while (result != COLOR_SELECT_EXIT)
 	{
@@ -1437,7 +1438,7 @@ void colorBehaviorMenu()
 				fadeSets[i].endG = tempRGB.g;
 				fadeSets[i].endB = tempRGB.b;
 				fadeSets[i].CLK.time = 0;
-				fadeSets[i].CLK.period = patternRenderClock.period;
+				fadeSets[i].CLK.period = patternRenderClock.period / 8;
 				fadeSets[i].CLK.rate = 1;
 				fadeSets[i].CLK.rollover = 0;
 				i++;
