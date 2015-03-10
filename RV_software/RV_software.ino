@@ -9,17 +9,17 @@
 //#include <string.h>
 
 typedef struct {
-	byte r;
-	byte g;
-	byte b;
+	int r;
+	int g;
+	int b;
 	byte redPin;
 	byte greenPin;
 	byte bluePin;
 } Output;
 typedef struct {
-	byte r;
-	byte g;
-	byte b;
+	int r;
+	int g;
+	int b;
 } RGB;
 typedef struct {
 	byte h;
@@ -34,11 +34,12 @@ typedef struct {
 	byte rollover;
 } Clock;
 typedef struct {
-	int period;
-	int rise;
-	int width;
-	int fall;
-	int count;
+	int phase; // count to witch intensity stays dark, an offset of the wave, does not affect following values
+	int rise; // count at witch intensity should be full
+	int width; //count after intensity decreases
+	int fall; // count where output should be 0
+	int count; //running clock
+	int period; //total counts in the wave
 } Wave;
 typedef struct {
 	byte led;
@@ -465,6 +466,12 @@ void lcdPrintInt (int val, byte line, byte pos, byte clearLine)
 	lcdSetPos(line, pos);
 	lcdPrint(itoa(val, tempChar, 10));
 }
+void lcdPrintHex (int val, byte line, byte pos, byte clearLine)
+{
+	if (clearLine) {lcdClearLine(line);}
+	lcdSetPos(line, pos);
+	lcdPrint(itoa(val, tempChar, 16));
+}
 
 //Menu stuff ***********************************************************************
 Encoder knob(ENCODER_A, ENCODER_B);
@@ -494,22 +501,27 @@ enum mainModes {
 enum patternModes {
 	PATTERN_TITLE			= MENU_TITLE ,
 	PATTERN_SOLID			= MENU_START ,
-	PATTERN_SEQUENCE					 ,
 	PATTERN_PULSE						 ,
 	PATTERN_HEARTBEAT					 ,
+	PATTERN_RANDOM						 ,
 	PATTERN_EXIT						 ,
 	PATTERN_SIZE			= MENU_SIZE
 	};
 enum speedModes
 {
-	SPEED_TITLE				= MENU_TITLE,
-	SPEED_1					= MENU_START,
-	SPEED_2								,
-	SPEED_3								,
-	SPEED_4								,
-	SPEED_5								,
-	SPEED_EXIT							,
-	SPEED_SIZE					= MENU_SIZE
+	SPEED_TITLE				= MENU_TITLE			,
+	SPEED_1					= MENU_START			,
+	SPEED_2											,
+	SPEED_3											,
+	SPEED_4											,
+	SPEED_5											,
+	SPEED_EXIT										,
+	SPEED_SIZE				= MENU_SIZE				,
+	SPEED_1_PERIOD			= FRAME_RATE * 16		,	//larger is slower, 16 second fades
+	SPEED_2_PERIOD			= FRAME_RATE * 8		,	// 8 second
+	SPEED_3_PERIOD			= FRAME_RATE * 4		,	// 4 seconds
+	SPEED_4_PERIOD			= FRAME_RATE * 1		,	// every second
+	SPEED_5_PERIOD			= FRAME_RATE / 4			// 4 per second
 };
 enum fadeModes
 {
@@ -616,7 +628,7 @@ enum eepromAdresses
 	};
 
 int globalIntensity; // should be rendered
-byte mainMode = MAIN_COLOR;
+byte mainMode = MAIN_PATTERN;
 byte patternMode  = PATTERN_SOLID;
 byte colorMode = COLOR_BEHAVIOR;
 byte colorBehaviorMode = COLOR_BEHAVIOR_SOLID;
@@ -624,11 +636,11 @@ byte speedMode = SPEED_3;
 byte brightnessMode = 5;
 //byte colorSeqeunceLength = MENU_START; in colorSequenceClock.period now
 //byte speedMode = MENU_START; in colorSequenceClock.rate now
-Clock colorRenderClock = {1, 100, 1, 1}; //simple init for safe clock operation
-Clock patternRenderClock = {1, 100, 1, 0}; //simple init for safe clock operation
+Clock colorRenderClock = {SPEED_1_PERIOD - 1, SPEED_1_PERIOD, 1, 0}; //simple init for safe clock operation
+Clock patternRenderClock = {SPEED_1_PERIOD - 1, SPEED_1_PERIOD, 1, 0}; //simple init for safe clock operation
 Clock patternClock = {1, 10, 1, 0}; //simple init for safe clock operation
 Clock colorSequenceClock = {1, 4, 1, 0}; //used by color sequence to know which color to display
-#define RAINBOW_CLOCK_DIVISOR 4
+#define RAINBOW_CLOCK_DIVISOR 8
 #define RAINBOW_CLOCK_LENGTH (255 * RAINBOW_CLOCK_DIVISOR)
 Clock rainbowClock = {1, RAINBOW_CLOCK_LENGTH, 1, 0}; //correct init
 Output leds[LEDS] = {
@@ -650,6 +662,27 @@ Fade fadeSets [LEDS] = {
 	{2, 0, 0, 0, 0, 0, 0, 90, 100, 1, 0},
 	{3, 0, 0, 0, 0, 0, 0, 90, 100, 1, 0}
 	};
+Wave waveSets [7] = {
+	//  {phase, rise, width, fall, couint, period}
+/*
+	{  0,  25,  50,  75, 254, 460}, //correlated to led channel 1
+	{  0,  25,  50,  75, 254, 460}, //correlated to led channel 2
+	{  0,  25,  50,  75, 254, 460}, //correlated to led channel 3
+	{  0,  25,  50,  75, 254, 460}, //correlated to led channel 4
+	{ 80, 112, 225, 375,   0, 460}, //pulse pattern profile
+	{ 80,  27,  53, 105,   0, 460}, //heartbeat 1st pound
+	{203,  27,  53, 105,   0, 460} //heartbeat 2nd pound, by offset
+	{phase,						rise,						width,						fall,						count,				period}	*/
+	{SPEED_1_PERIOD *   0 / 10 , SPEED_1_PERIOD *   2 / 10 , SPEED_1_PERIOD *   5 / 10 , SPEED_1_PERIOD *  7  / 10 , SPEED_1_PERIOD-1, SPEED_1_PERIOD}, //correlated to led channel 1
+	{SPEED_1_PERIOD *   0 / 10 , SPEED_1_PERIOD *   2 / 10 , SPEED_1_PERIOD *   5 / 10 , SPEED_1_PERIOD *  7  / 10 , SPEED_1_PERIOD-1, SPEED_1_PERIOD}, //correlated to led channel 2
+	{SPEED_1_PERIOD *   0 / 10 , SPEED_1_PERIOD *   2 / 10 , SPEED_1_PERIOD *   5 / 10 , SPEED_1_PERIOD *  7  / 10 , SPEED_1_PERIOD-1, SPEED_1_PERIOD}, //correlated to led channel 3
+	{SPEED_1_PERIOD *   0 / 10 , SPEED_1_PERIOD *   2 / 10 , SPEED_1_PERIOD *   5 / 10 , SPEED_1_PERIOD *  7  / 10 , SPEED_1_PERIOD-1, SPEED_1_PERIOD}, //correlated to led channel 4
+	{SPEED_1_PERIOD *   2 / 10 , SPEED_1_PERIOD *   2 / 10 , SPEED_1_PERIOD *   5 / 10 , SPEED_1_PERIOD *  3  / 4  , SPEED_1_PERIOD-1, SPEED_1_PERIOD}, //pulse pattern profile
+	{SPEED_1_PERIOD *   2 / 10 , SPEED_1_PERIOD *   12 / 100, SPEED_1_PERIOD *  16 / 100, SPEED_1_PERIOD *  27 / 100, SPEED_1_PERIOD-1, SPEED_1_PERIOD}, //heartbeat 1st pound
+	{SPEED_1_PERIOD *   6 / 10 , SPEED_1_PERIOD *   12 / 100, SPEED_1_PERIOD *  16 / 100, SPEED_1_PERIOD *  27 / 100, SPEED_1_PERIOD-1, SPEED_1_PERIOD} //heartbeat 2nd pound, by offset
+
+};
+
 
 void eepromSavePattern ()
 {
@@ -675,11 +708,11 @@ void eepromSaveSpeed ()
 }
 void loadSpeedMode (byte mode)
 {
-		if		(mode == SPEED_1)	{speedMode = mode; colorRenderClock.period = 150; patternRenderClock.period = 150; rainbowClock.rate = 1;}
-		else if (mode == SPEED_2)	{speedMode = mode; colorRenderClock.period = 80; patternRenderClock.period = 80; rainbowClock.rate = 12;}
-		else if (mode == SPEED_3)	{speedMode = mode; colorRenderClock.period = 25; patternRenderClock.period = 30; rainbowClock.rate = 25;}
-		else if (mode == SPEED_4)	{speedMode = mode; colorRenderClock.period = 15; patternRenderClock.period = 18; rainbowClock.rate = 50;}
-		else if (mode == SPEED_5)	{speedMode = mode; colorRenderClock.period = 6; patternRenderClock.period = 5; rainbowClock.rate = 93;}
+		if		(mode == SPEED_1)	{speedMode = mode; colorRenderClock.period = SPEED_1_PERIOD; patternRenderClock.rate = SPEED_1_PERIOD / SPEED_1_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_1_PERIOD;}
+		else if (mode == SPEED_2)	{speedMode = mode; colorRenderClock.period = SPEED_2_PERIOD; patternRenderClock.rate = SPEED_1_PERIOD / SPEED_2_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_2_PERIOD;}
+		else if (mode == SPEED_3)	{speedMode = mode; colorRenderClock.period = SPEED_3_PERIOD; patternRenderClock.rate = SPEED_1_PERIOD / SPEED_3_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_3_PERIOD;}
+		else if (mode == SPEED_4)	{speedMode = mode; colorRenderClock.period = SPEED_4_PERIOD; patternRenderClock.rate = SPEED_1_PERIOD / SPEED_4_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_4_PERIOD;}
+		else if (mode == SPEED_5)	{speedMode = mode; colorRenderClock.period = SPEED_5_PERIOD; patternRenderClock.rate = SPEED_1_PERIOD / SPEED_5_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_5_PERIOD;}
 }
 void eepromSaveBrightness ()
 {
@@ -693,7 +726,7 @@ void eepromSaveDefaults()
 	EEPROM.write(EEPROM_COLOR_BEHAVIOR_MODE		,COLOR_BEHAVIOR_SOLID		);
 	EEPROM.write(EEPROM_COLOR_SEQUENCE_LENGTH	,COLOR_SEQUENCE_LENGTH_4	);
 	EEPROM.write(EEPROM_SPEED_MODE				,SPEED_3					);
-	EEPROM.write(EEPROM_BRIGHTNESS_MODE			,40							); 
+	EEPROM.write(EEPROM_BRIGHTNESS_MODE			,100							); 
 	EEPROM.write(EEPROM_GLOBAL1_HSV_MODE		,COLOR_SELECT_RED			);
 	EEPROM.write(EEPROM_GLOBAL2_HSV_MODE		,COLOR_SELECT_BLUE			);
 	EEPROM.write(EEPROM_GLOBAL3_HSV_MODE		,COLOR_SELECT_GREEN			);
@@ -719,26 +752,22 @@ void eepromLoad()
 	globalColorHSV[1].hsvMode	= EEPROM.read(EEPROM_GLOBAL2_HSV_MODE		);
 	globalColorHSV[2].hsvMode	= EEPROM.read(EEPROM_GLOBAL3_HSV_MODE		);
 	globalColorHSV[3].hsvMode	= EEPROM.read(EEPROM_GLOBAL4_HSV_MODE		);
-	globalColorHSV[0].h			= EEPROM.read(EEPROM_GLOBAL1_H_MODE  		);//rainbow offsets or custom colors
-	globalColorHSV[1].h			= EEPROM.read(EEPROM_GLOBAL2_H_MODE  		);
-	globalColorHSV[2].h			= EEPROM.read(EEPROM_GLOBAL3_H_MODE  		);
-	globalColorHSV[3].h			= EEPROM.read(EEPROM_GLOBAL4_H_MODE  		);
-	
-}
-void memoryInit()
-{
 	byte i = 0;
 	while (i < LEDS)
 	{
-		if (globalColorHSV[i].hsvMode == COLOR_HSV_WHITE)	{globalColorHSV[i].s = 0;}
+		if (globalColorHSV[i].hsvMode == COLOR_SELECT_WHITE)	{globalColorHSV[i].s = 0;}
 		else												{globalColorHSV[i].s = 255;}
-		leds[i].r = 0;
+		leds[i].r = 0; //set all outputs to 0
 		leds[i].g = 0;
 		leds[i].b = 0;
 		i++;
 	}
-	eepromLoad();
+	globalColorHSV[0].h			= EEPROM.read(EEPROM_GLOBAL1_H_MODE  		);//rainbow offsets or custom colors
+	globalColorHSV[1].h			= EEPROM.read(EEPROM_GLOBAL2_H_MODE  		);
+	globalColorHSV[2].h			= EEPROM.read(EEPROM_GLOBAL3_H_MODE  		);
+	globalColorHSV[3].h			= EEPROM.read(EEPROM_GLOBAL4_H_MODE  		);		
 }
+
 void hardwareInit ()
 {
 	pinMode(	leds[0].redPin    , OUTPUT	);
@@ -980,6 +1009,7 @@ int runValueMenu (char* (*useMenu)(int), byte startingValue, int increment, int 
 			if (colorDisplay) {
 				updateLEDsColorSingle(tempINT); 
 			}
+			else {brightnessMode = tempINT;}
 		}
 	}
 	return(menuExit);  //result = timeout no change
@@ -991,14 +1021,14 @@ Clock& clockUpdate(Clock& clockInUse)
 	if (clockInUse.time > clockInUse.period) {clockInUse.time = clockInUse.time - (clockInUse.period + 1); clockInUse.rollover = 1;}
  	if (clockInUse.time < 0)				 {clockInUse.time = clockInUse.time + (clockInUse.period + 1); clockInUse.rollover = 1;}
 }
-
 void globalClockUpdate() //deal with all clocks
 {
 	clockUpdate(rainbowClock);
 	clockUpdate(patternRenderClock);
-	if (patternRenderClock.rollover){clockUpdate(patternClock); patternRenderClock.rollover=0;}
-	clockUpdate(colorRenderClock);
-	if (colorRenderClock.rollover){clockUpdate(colorSequenceClock); colorRenderClock.rollover=0;}
+// 	if (patternRenderClock.rollover){clockUpdate(patternClock); patternRenderClock.rollover=0;}
+// 	clockUpdate(colorRenderClock);
+// 	if (colorRenderClock.rollover){clockUpdate(colorSequenceClock); colorRenderClock.rollover=0;}
+	if (patternRenderClock.rollover){clockUpdate(colorSequenceClock); patternRenderClock.rollover=0;}
 }
 
 void globalIntensitySync()
@@ -1007,37 +1037,41 @@ void globalIntensitySync()
 }
 HSV& colorRandomHSV(HSV& tempHSV)
 {
-	tempHSV.h = rand();
+	tempHSV.h = rand() % 255;
 	tempHSV.s = 255;//rand();
 	tempHSV.v = 255;
 	return(tempHSV);
 }
-Fade& fadeUpdateSequence(Fade& underChange, byte val)
+Fade& fadeUpdateSequence(Fade& underChange)//, byte val)
 {
 	underChange.startR = underChange.endR;
 	underChange.startG = underChange.endG;
 	underChange.startB = underChange.endB;
 	RGB tempRGB;
-	globalColorHSV[colorSequenceClock.time].v = val;
-	if (globalColorHSV[underChange.led].hsvMode == COLOR_SELECT_RAINBOW) {globalColorHSV[underChange.led].h = byte(rainbowClock.time / 4);}
+	globalColorHSV[colorSequenceClock.time].v = 255;// val;
+	if (globalColorHSV[underChange.led].hsvMode == COLOR_SELECT_RAINBOW) {globalColorHSV[underChange.led].h = byte(rainbowClock.time / RAINBOW_CLOCK_DIVISOR);}
 	hsvToRgb(globalColorHSV[colorSequenceClock.time], tempRGB);  // the clock changes with the fade color
 	underChange.endR = tempRGB.r;
 	underChange.endG = tempRGB.g;
 	underChange.endB = tempRGB.b;
-	underChange.CLK.period = colorRenderClock.period / 2;
+	if (patternMode == PATTERN_PULSE || patternMode == PATTERN_HEARTBEAT)
+	{
+		underChange.CLK.period = colorRenderClock.period / 12;
+	}
+	else {	underChange.CLK.period = colorRenderClock.period / 2;}
 	underChange.CLK.rate = 1;
 	underChange.CLK.time = 0;
 	underChange.CLK.rollover = 0;
 	return(underChange);
 }
-Fade& fadeUpdateRandom(Fade& underChange, byte val)
+Fade& fadeUpdateRandom(Fade& underChange) //, byte val)
 {
 	underChange.startR = underChange.endR;
 	underChange.startG = underChange.endG;
 	underChange.startB = underChange.endB;
 	HSV tempHSV;
 	colorRandomHSV(tempHSV);
-	tempHSV.v = val;
+	tempHSV.v = 255; //val;
 	RGB tempRGB;
 	hsvToRgb(tempHSV, tempRGB);
 	underChange.endR = tempRGB.r;
@@ -1050,28 +1084,36 @@ Fade& fadeUpdateRandom(Fade& underChange, byte val)
 	underChange.CLK.rollover = 0;
 	return(underChange);
 }
-RGB& fadeRender(Fade& underChange, RGB& tempRGB, byte val)
-{	
-	clockUpdate(underChange.CLK);
-	if (underChange.CLK.rollover == 1) {
-		if (colorBehaviorMode == COLOR_BEHAVIOR_SEQUENCE) {fadeUpdateSequence(underChange, val);}
-		else if (colorBehaviorMode == COLOR_BEHAVIOR_RANDOM) {fadeUpdateRandom(underChange, val);}
-	}
+int fadeCalcSingle (int startValue, int endValue, int time, int period)
+{
 	//NOW <= START + (FADE_CT * (END - START))/FADE_L
-	//RGB tempRGB;
-	double space = 0;
-	int count = /*underChange.CLK.period - */underChange.CLK.time;
-	tempRGB.r = space + underChange.startR + (count * (underChange.endR - underChange.startR)) / underChange.CLK.period;
-	tempRGB.g = space + underChange.startG + (count * (underChange.endG - underChange.startG)) / underChange.CLK.period;
-	tempRGB.b = space + underChange.startB + (count * (underChange.endB - underChange.startB)) / underChange.CLK.period;
+	return(startValue + (time * (endValue - double(startValue))) / period);
+	
+}
+/*
+byte fadeCalcValue (int startValue, int endValue, int time, int period, byte intensity)
+{
+	//NOW <= START + (FADE_CT * (END - START))/FADE_L
+	double value = (startValue + (time * (endValue - startValue)) / period);
+	value = (byte(value) * intensity) / 255;
+	return(value);
+}
+*/
+RGB& colorRender(Fade& underChange, RGB& tempRGB, byte val)
+{	
+	clockUpdate(underChange.CLK); //update the private clock inside the fade
+	if (underChange.CLK.rollover == 1) {
+		if (colorBehaviorMode == COLOR_BEHAVIOR_SEQUENCE) {fadeUpdateSequence(underChange);} 
+		else if (colorBehaviorMode == COLOR_BEHAVIOR_RANDOM) {fadeUpdateRandom(underChange);}
+	}
+	tempRGB.r = fadeCalcSingle(underChange.startR, underChange.endR, underChange.CLK.time, underChange.CLK.period);
+	tempRGB.g = fadeCalcSingle(underChange.startG, underChange.endG, underChange.CLK.time, underChange.CLK.period);
+	tempRGB.b = fadeCalcSingle(underChange.startB, underChange.endB, underChange.CLK.time, underChange.CLK.period);
+	tempRGB.r = fadeCalcSingle(0, tempRGB.r, val, 255); //apply intensity value
+	tempRGB.g = fadeCalcSingle(0, tempRGB.g, val, 255);
+	tempRGB.b = fadeCalcSingle(0, tempRGB.b, val, 255);
 	return(tempRGB);
 }
-
-byte patternRender(int ledNumber)
-{
-	return 255;	
-}
-
 RGB& colorBalance (RGB& tempRGB)
 {
 	int sum = tempRGB.r + tempRGB.g + tempRGB.b;
@@ -1083,21 +1125,66 @@ RGB& colorBalance (RGB& tempRGB)
 		tempRGB.b = (tempRGB.b * ratio) / SCALE_ACCURACY;
 	}
 }
-
 RGB& colorValueRender(int ledNumber, byte val, RGB& tempRGB)
 {
 	HSV tempHSV;
 	tempHSV.v = val;
-	if		(colorBehaviorMode == COLOR_BEHAVIOR_SOLID	) 
-	{	
-		if (globalColorHSV[ledNumber].hsvMode == COLOR_SELECT_RAINBOW) {tempHSV.h = globalColorHSV[ledNumber].h + byte(rainbowClock.time / RAINBOW_CLOCK_DIVISOR); tempHSV.s = 255; hsvToRgb(tempHSV, tempRGB);}
-		else {globalColorHSV[ledNumber].v = val; hsvToRgb(globalColorHSV[ledNumber], tempRGB);}
+	if	(colorBehaviorMode == COLOR_BEHAVIOR_SOLID	) {	
+		if (globalColorHSV[ledNumber].hsvMode == COLOR_SELECT_RAINBOW) {
+			tempHSV.h = globalColorHSV[ledNumber].h + byte(rainbowClock.time / RAINBOW_CLOCK_DIVISOR);
+			 tempHSV.s = 255; hsvToRgb(tempHSV, tempRGB);
+		}
+		else {
+			globalColorHSV[ledNumber].v = val;
+			hsvToRgb(globalColorHSV[ledNumber], tempRGB);
+		}
 	}
-	else if (colorBehaviorMode == COLOR_BEHAVIOR_SEQUENCE	) {fadeRender(fadeSets[ledNumber], tempRGB, val);}//colorSequenceRender(ledNumber, tempRGB);}
-	else if (colorBehaviorMode == COLOR_BEHAVIOR_RAINBOW	) {tempHSV.h = globalColorHSV[ledNumber].h + byte(rainbowClock.time / RAINBOW_CLOCK_DIVISOR); tempHSV.s = 255; hsvToRgb(tempHSV, tempRGB);}
-	else if (colorBehaviorMode == COLOR_BEHAVIOR_RANDOM		) {fadeRender(fadeSets[ledNumber], tempRGB, val);}//colorRandomSequenceRender(tempRGB);}
+	else if (colorBehaviorMode == COLOR_BEHAVIOR_SEQUENCE	) {
+		colorRender(fadeSets[ledNumber], tempRGB, val);
+	}
+	else if (colorBehaviorMode == COLOR_BEHAVIOR_RAINBOW	) {
+		tempHSV.h = globalColorHSV[ledNumber].h + byte(rainbowClock.time / RAINBOW_CLOCK_DIVISOR);
+		tempHSV.s = 255; hsvToRgb(tempHSV, tempRGB);
+	}
+	else if (colorBehaviorMode == COLOR_BEHAVIOR_RANDOM		) {
+		colorRender(fadeSets[ledNumber], tempRGB, val);
+	}
 	colorBalance(tempRGB);
 	return(tempRGB);
+}
+
+byte waveRender (byte wave)//returns intensity for led based on pattern
+{
+	int		 localClock = patternRenderClock.time - waveSets[wave].phase; //get clock, shrink to size and offset
+	while   (localClock < 0)					 {localClock += patternRenderClock.period;} ; //fix any phase wrapping
+	if		(localClock <= waveSets[wave].rise)  {return(fadeCalcSingle(0, 255, localClock,  waveSets[wave].rise));}
+	else if (localClock <= waveSets[wave].width) {return (255);}
+	else if (localClock <= waveSets[wave].fall)  {return(fadeCalcSingle(255, 0, localClock - waveSets[wave].width,  waveSets[wave].fall - waveSets[wave].width));}
+	else										 {return (0);}
+}
+byte waveRenderRandom (byte wave)//returns intensity for led based on pattern
+{
+	waveSets[wave].count += patternRenderClock.rate;
+	if (waveSets[wave].count > waveSets[wave].period)
+	{
+		waveSets[wave].count = 0;
+		waveSets[wave].rise		=							rand() % (patternRenderClock.period >> 2) + (patternRenderClock.period >> 4 ); 
+		waveSets[wave].width	= waveSets[wave].rise	+	rand() % (patternRenderClock.period >> 2) + (patternRenderClock.period >> 4 );
+		waveSets[wave].fall		= waveSets[wave].width	+	rand() % (patternRenderClock.period >> 2) + (patternRenderClock.period >> 4 );
+		waveSets[wave].period	= waveSets[wave].fall	+	rand() % (patternRenderClock.period >> 2) + (patternRenderClock.period >> 4 );
+	}
+	if		(waveSets[wave].count <= waveSets[wave].rise)  {return(fadeCalcSingle(0, 255, waveSets[wave].count,  waveSets[wave].rise));}
+	else if (waveSets[wave].count <= waveSets[wave].width) {return (255);}
+	else if (waveSets[wave].count <= waveSets[wave].fall)  {return(fadeCalcSingle(255, 0, waveSets[wave].count - waveSets[wave].width,  waveSets[wave].fall -  waveSets[wave].width));}
+	else												{return (0);}
+}
+byte patternRender(byte ledNumber)
+{
+	if		(patternMode == PATTERN_SOLID		)	{return (255);}
+	else if (patternMode == PATTERN_PULSE		)	{return(waveRender(4));}
+	else if (patternMode == PATTERN_HEARTBEAT	)	{return(waveRender(5) + waveRender(6));}
+	else if (patternMode == PATTERN_RANDOM		)	{return(waveRenderRandom(ledNumber));}
+	
 }
 
 void render()
@@ -1105,45 +1192,74 @@ void render()
 	globalClockUpdate();
 	globalIntensitySync();
 	RGB tempRGB;
-	int i = 0;
+	byte i = 0;
+#ifdef DIAGNOSTIC
+	lcdClearLine(3);
+#endif
 	while (i < LEDS)
 	{
-		colorValueRender(i, patternRender(i), tempRGB);
-		leds[i].r = int((tempRGB.r * globalIntensity) / 255);
-		leds[i].g = int((tempRGB.g * globalIntensity) / 255);
-		leds[i].b = int((tempRGB.b * globalIntensity) / 255);
+		byte intenstiy = patternRender(i);
+		lcdPrintHex(intenstiy, 3, 30 * i, 0);
+		colorValueRender(i, intenstiy, tempRGB);
+		leds[i].r = byte((tempRGB.r * globalIntensity) / 255);
+		leds[i].g = byte((tempRGB.g * globalIntensity) / 255);
+		leds[i].b = byte((tempRGB.b * globalIntensity) / 255);
 		i++;
 	}
 	updateLedOutputs();
 }
-
+#ifdef DIAGNOSTIC
 void showDiagnostic ()
 {
+/*
 	byte i = 0;
-	while(i < 1)
+	while(i < 2)
 	{
-		lcdPrintInt(fadeSets[i].CLK.period, i,0,1);
-		lcdPrintInt(fadeSets[i].CLK.time,	i,20,0);
-		lcdPrintInt(fadeSets[i].endR,		i,40,0);
-		lcdPrintInt(fadeSets[i].endG,		i,70,0);
-		lcdPrintInt(fadeSets[i].endB,		i,100,0);
+		lcdPrintHex(fadeSets[i].CLK.period, 2*i		,0		,1);
+		lcdPrintHex(fadeSets[i].endR,		2*i		,30		,0);
+		lcdPrintHex(fadeSets[i].endG,		2*i		,60		,0);
+		lcdPrintHex(fadeSets[i].endB,		2*i		,90		,0);
+		lcdPrintHex(fadeSets[i].CLK.time,	2*i+1	,0		,1);
+		lcdPrintHex(leds[i].r,				2*i+1	,30		,0);
+		lcdPrintHex(leds[i].g,				2*i+1	,60		,0);
+		lcdPrintHex(leds[i].b,				2*i+1	,90		,0); 
+		
 		i++;
-	}
-	lcdPrintInt(colorSequenceClock.period,	i,00,1);
-	lcdPrintInt(colorSequenceClock.time,	i,30,0);
-	lcdPrintInt(colorRenderClock.time,	i,60,0);
-	lcdPrintInt(rainbowClock.time,	i,90,0);
+	}*/
+/*
+	lcdPrintInt(colorRenderClock.time, 0, 0, 1);
+	lcdPrintInt(colorRenderClock.period, 0, 30, 0);
+	lcdPrintInt(colorRenderClock.rate, 0, 60, 0);
+*/
+	lcdPrintInt(patternRenderClock.time,	0, 0, 1);
+	lcdPrintInt(patternRenderClock.period,	0, 30, 0);
+	lcdPrintInt(patternRenderClock.rate,	0, 60, 0);
+/*
+	lcdPrintInt(rainbowClock.time, 2, 0, 1);
+	lcdPrintInt(rainbowClock.period, 2, 30, 0);
+	lcdPrintInt(rainbowClock.rate, 2, 60, 0);
+*/
+	lcdPrintHex(waveSets[4].phase,	1, 0, 1);
+	lcdPrintHex(waveSets[4].rise ,	1, 20, 0);
+	lcdPrintHex(waveSets[4].width,	1, 40, 0);
+	lcdPrintHex(waveSets[4].fall ,	1, 60, 0);
+	lcdPrintHex(waveSets[4].count,	1, 80, 0);
+	lcdPrintHex(waveSets[4].period,	1, 100, 0);
+	
+	
 }
+#endif
+
 char* errorMessage () {return("*Error*");}  //reduces memory, removes error string info from every menu
 char* exitMessage () {return("Nothing and Save");}  //reduces memory, removes error string info from every menu
 
 char* patternMenuContent(int pos)
 {
-	if 		(pos ==	PATTERN_TITLE			)		{return(	"Pattern Menu:"		);}
-	else if (pos == PATTERN_SOLID			)		{return(	"Static"			);}
-	else if (pos == PATTERN_SEQUENCE		)		{return(	"Sequence"			);}
-	else if (pos ==	PATTERN_PULSE			)		{return(	"Pulses"			);}
-	else if (pos ==	PATTERN_HEARTBEAT		)		{return(	"Heartbeat"			);}
+	if 		(pos ==	PATTERN_TITLE			)		{return(	"I want the light"		);}
+	else if (pos == PATTERN_SOLID			)		{return(	"to be on solid."			);}
+	else if (pos ==	PATTERN_PULSE			)		{return(	"in long pulses"			);}
+	else if (pos ==	PATTERN_HEARTBEAT		)		{return(	"in a heartbeat"			);}
+	else if (pos == PATTERN_RANDOM			)		{return(	"in random pulses"			);}
 	else if (pos ==	PATTERN_SIZE			)		{return(	"4"					);}
 	else											{return(	errorMessage()		);}
 }
@@ -1422,7 +1538,7 @@ void splashScreen ()
 
 void setup ()
 {
-	memoryInit();
+	eepromLoad();
 	hardwareInit();	
  	lcdInit();
     splashScreen();
