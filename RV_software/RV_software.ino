@@ -520,8 +520,8 @@ enum speedModes
 	SPEED_1_PERIOD			= FRAME_RATE * 16		,	//larger is slower, 16 second fades
 	SPEED_2_PERIOD			= FRAME_RATE * 8		,	// 8 second
 	SPEED_3_PERIOD			= FRAME_RATE * 4		,	// 4 seconds
-	SPEED_4_PERIOD			= FRAME_RATE * 1		,	// every second
-	SPEED_5_PERIOD			= FRAME_RATE / 4			// 4 per second
+	SPEED_4_PERIOD			= FRAME_RATE 		,	// 2every second
+	SPEED_5_PERIOD			= FRAME_RATE / 4			// 1 per second
 };
 enum fadeModes
 {
@@ -634,11 +634,13 @@ byte colorMode = COLOR_BEHAVIOR;
 byte colorBehaviorMode = COLOR_BEHAVIOR_SOLID;
 byte speedMode = SPEED_3;
 byte brightnessMode = 5;
+/*
 //byte colorSeqeunceLength = MENU_START; in colorSequenceClock.period now
 //byte speedMode = MENU_START; in colorSequenceClock.rate now
-Clock colorRenderClock = {SPEED_1_PERIOD - 1, SPEED_1_PERIOD, 1, 0}; //simple init for safe clock operation
+//Clock colorRenderClock = {SPEED_1_PERIOD - 1, SPEED_1_PERIOD, 1, 0}; //simple init for safe clock operation
+//Clock patternClock = {1, 10, 1, 0}; //simple init for safe clock operation
+*/
 Clock patternRenderClock = {SPEED_1_PERIOD - 1, SPEED_1_PERIOD, 1, 0}; //simple init for safe clock operation
-Clock patternClock = {1, 10, 1, 0}; //simple init for safe clock operation
 Clock colorSequenceClock = {1, 4, 1, 0}; //used by color sequence to know which color to display
 #define RAINBOW_CLOCK_DIVISOR 8
 #define RAINBOW_CLOCK_LENGTH (255 * RAINBOW_CLOCK_DIVISOR)
@@ -663,7 +665,6 @@ Fade fadeSets [LEDS] = {
 	{3, 0, 0, 0, 0, 0, 0, 90, 100, 1, 0}
 	};
 Wave waveSets [7] = {
-	//  {phase, rise, width, fall, couint, period}
 /*
 	{  0,  25,  50,  75, 254, 460}, //correlated to led channel 1
 	{  0,  25,  50,  75, 254, 460}, //correlated to led channel 2
@@ -671,8 +672,8 @@ Wave waveSets [7] = {
 	{  0,  25,  50,  75, 254, 460}, //correlated to led channel 4
 	{ 80, 112, 225, 375,   0, 460}, //pulse pattern profile
 	{ 80,  27,  53, 105,   0, 460}, //heartbeat 1st pound
-	{203,  27,  53, 105,   0, 460} //heartbeat 2nd pound, by offset
-	{phase,						rise,						width,						fall,						count,				period}	*/
+	{203,  27,  53, 105,   0, 460} //heartbeat 2nd pound, by offset*/
+//	{phase,						rise,						width,						fall,						count,				period}	
 	{SPEED_1_PERIOD *   0 / 10 , SPEED_1_PERIOD *   2 / 10 , SPEED_1_PERIOD *   5 / 10 , SPEED_1_PERIOD *  7  / 10 , SPEED_1_PERIOD-1, SPEED_1_PERIOD}, //correlated to led channel 1
 	{SPEED_1_PERIOD *   0 / 10 , SPEED_1_PERIOD *   2 / 10 , SPEED_1_PERIOD *   5 / 10 , SPEED_1_PERIOD *  7  / 10 , SPEED_1_PERIOD-1, SPEED_1_PERIOD}, //correlated to led channel 2
 	{SPEED_1_PERIOD *   0 / 10 , SPEED_1_PERIOD *   2 / 10 , SPEED_1_PERIOD *   5 / 10 , SPEED_1_PERIOD *  7  / 10 , SPEED_1_PERIOD-1, SPEED_1_PERIOD}, //correlated to led channel 3
@@ -683,7 +684,7 @@ Wave waveSets [7] = {
 
 };
 
-
+/*
 void eepromSavePattern ()
 {
 	EEPROM.write(EEPROM_PATTERN_MODE			,patternMode				);
@@ -706,17 +707,24 @@ void eepromSaveSpeed ()
 {
 	EEPROM.write(EEPROM_SPEED_MODE				,speedMode					);
 }
+void eepromSaveBrightness ()
+{
+	EEPROM.write(EEPROM_BRIGHTNESS_MODE			,brightnessMode				); 
+}*/
 void loadSpeedMode (byte mode)
 {
+/*
 		if		(mode == SPEED_1)	{speedMode = mode; colorRenderClock.period = SPEED_1_PERIOD; patternRenderClock.rate = SPEED_1_PERIOD / SPEED_1_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_1_PERIOD;}
 		else if (mode == SPEED_2)	{speedMode = mode; colorRenderClock.period = SPEED_2_PERIOD; patternRenderClock.rate = SPEED_1_PERIOD / SPEED_2_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_2_PERIOD;}
 		else if (mode == SPEED_3)	{speedMode = mode; colorRenderClock.period = SPEED_3_PERIOD; patternRenderClock.rate = SPEED_1_PERIOD / SPEED_3_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_3_PERIOD;}
 		else if (mode == SPEED_4)	{speedMode = mode; colorRenderClock.period = SPEED_4_PERIOD; patternRenderClock.rate = SPEED_1_PERIOD / SPEED_4_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_4_PERIOD;}
 		else if (mode == SPEED_5)	{speedMode = mode; colorRenderClock.period = SPEED_5_PERIOD; patternRenderClock.rate = SPEED_1_PERIOD / SPEED_5_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_5_PERIOD;}
-}
-void eepromSaveBrightness ()
-{
-	EEPROM.write(EEPROM_BRIGHTNESS_MODE			,brightnessMode				); 
+*/
+	if		(mode == SPEED_1)	{patternRenderClock.rate = SPEED_1_PERIOD / SPEED_1_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_1_PERIOD;}
+	else if (mode == SPEED_2)	{patternRenderClock.rate = SPEED_1_PERIOD / SPEED_2_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_2_PERIOD;}
+	else if (mode == SPEED_3)	{patternRenderClock.rate = SPEED_1_PERIOD / SPEED_3_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_3_PERIOD;}
+	else if (mode == SPEED_4)	{patternRenderClock.rate = SPEED_1_PERIOD / SPEED_4_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_4_PERIOD;}
+	else if (mode == SPEED_5)	{patternRenderClock.rate = SPEED_1_PERIOD / SPEED_5_PERIOD; rainbowClock.rate = RAINBOW_CLOCK_LENGTH / SPEED_5_PERIOD;}	
 }
 void eepromSaveDefaults()
 {
@@ -1009,7 +1017,11 @@ int runValueMenu (char* (*useMenu)(int), byte startingValue, int increment, int 
 			if (colorDisplay) {
 				updateLEDsColorSingle(tempINT); 
 			}
-			else {brightnessMode = tempINT;}
+			else 
+			{
+				brightnessMode = tempINT;
+				render();
+			}
 		}
 	}
 	return(menuExit);  //result = timeout no change
@@ -1056,9 +1068,9 @@ Fade& fadeUpdateSequence(Fade& underChange)//, byte val)
 	underChange.endB = tempRGB.b;
 	if (patternMode == PATTERN_PULSE || patternMode == PATTERN_HEARTBEAT)
 	{
-		underChange.CLK.period = colorRenderClock.period / 12;
+		underChange.CLK.period = 2;
 	}
-	else {	underChange.CLK.period = colorRenderClock.period / 2;}
+	else {	underChange.CLK.period = patternRenderClock.period / patternRenderClock.rate / 2;}
 	underChange.CLK.rate = 1;
 	underChange.CLK.time = 0;
 	underChange.CLK.rollover = 0;
@@ -1078,7 +1090,7 @@ Fade& fadeUpdateRandom(Fade& underChange) //, byte val)
 	underChange.endG = tempRGB.g;
 	underChange.endB = tempRGB.b;
 	//underChange.CLK.period = rand() % (LONGEST_PERIOD - SHORTEST_PERIOD) + SHORTEST_PERIOD ;
-	underChange.CLK.period = rand() % colorRenderClock.period + colorRenderClock.period / 3;
+	underChange.CLK.period = rand() % patternRenderClock.period + patternRenderClock.period / 3;
 	underChange.CLK.rate = 1;
 	underChange.CLK.time = 0;
 	underChange.CLK.rollover = 0;
@@ -1367,13 +1379,16 @@ void colorSequenceLengthMenu()
 	{
 		result = runContentMenu(colorSequenceLengthContent, result, COLOR_SEQUENCE_LENGTH_EXIT);
 		if (result >= COLOR_SEQUENCE_LENGTH_1 && result <= COLOR_SEQUENCE_LENGTH_4) 
-			{colorSequenceClock.period = result; result = COLOR_SEQUENCE_LENGTH_EXIT;}
+		{
+			colorSequenceClock.period = result; 
+			EEPROM.write(EEPROM_COLOR_SEQUENCE_LENGTH	,colorSequenceClock.period	);
+			result = COLOR_SEQUENCE_LENGTH_EXIT;	//force menu exit	
+		}
 	}
 	if (colorSequenceClock.period == COLOR_SEQUENCE_LENGTH_1)
 	{
 		colorSequenceClock.time = 0; // when length is 0 time does not change. must set
 	}
-	
 }
 
 char* colorBehaviorMenuContent(int pos)
@@ -1392,10 +1407,18 @@ void colorBehaviorMenu()
 	while (result != COLOR_BEHAVIOR_EXIT)
 	{
 		result = runContentMenu(colorBehaviorMenuContent, result, COLOR_BEHAVIOR_EXIT);
-		if		(result == COLOR_BEHAVIOR_SOLID		)	{colorBehaviorMode = 	result;}
-		else if (result == COLOR_BEHAVIOR_SEQUENCE	)	
+		//if		(result == COLOR_BEHAVIOR_SOLID		)	{colorBehaviorMode = 	result;}
+		//else if (result == COLOR_BEHAVIOR_RAINBOW	)	{colorBehaviorMode = 	result;} // rainbow driven by a counter signal
+		//else if (result == COLOR_BEHAVIOR_RANDOM	)	{colorBehaviorMode = 	result;} // random has no control
+		//else 
+		if (result != COLOR_BEHAVIOR_EXIT)				
 		{
-			colorBehaviorMode = 	result; 
+			colorBehaviorMode = 	result;
+			EEPROM.write(EEPROM_COLOR_BEHAVIOR_MODE , colorBehaviorMode );
+		}
+		if (result == COLOR_BEHAVIOR_SEQUENCE	)	
+		{
+			//colorBehaviorMode = 	result; 
 			RGB tempRGB;
 			hsvToRgb(globalColorHSV[colorSequenceClock.time], tempRGB);
 			byte i = 0;
@@ -1414,10 +1437,7 @@ void colorBehaviorMenu()
 				i++;
 			}
 			colorSequenceLengthMenu();
-			
 		}
-		else if (result == COLOR_BEHAVIOR_RAINBOW	)	{colorBehaviorMode = 	result;} // rainbow driven by a counter signal
-		else if (result == COLOR_BEHAVIOR_RANDOM	)	{colorBehaviorMode = 	result;} // random has no control
 	}
 }
 
@@ -1438,11 +1458,41 @@ void colorMenu()
 	while (result != COLOR_EXIT)
 	{
 		result = runContentMenu(colorMenuContent, result, COLOR_EXIT);
-		if		(result == COLOR_BEHAVIOR						) {colorMode = result; colorBehaviorMenu();}
-		else if (result == COLOR_GLOBAL1						) {colorMode = result; globalColorHSV[0] = colorSelectMenu(globalColorHSV[0]);}
-		else if (result == COLOR_GLOBAL2						) {colorMode = result; globalColorHSV[1] = colorSelectMenu(globalColorHSV[1]);}
-		else if (result == COLOR_GLOBAL3						) {colorMode = result; globalColorHSV[2] = colorSelectMenu(globalColorHSV[2]);}
-		else if (result == COLOR_GLOBAL4						) {colorMode = result; globalColorHSV[3] = colorSelectMenu(globalColorHSV[3]);}
+		if (result == COLOR_BEHAVIOR) 
+		{
+			colorMode = result; 
+			colorBehaviorMenu(); 
+			EEPROM.write(EEPROM_COLOR_BEHAVIOR_MODE	, colorBehaviorMode );
+		}
+		else if (result == COLOR_GLOBAL1) 
+		{
+			colorMode = result; 
+			globalColorHSV[0] = colorSelectMenu(globalColorHSV[0]);
+			EEPROM.write(EEPROM_GLOBAL1_HSV_MODE		,globalColorHSV[0].hsvMode	);
+			EEPROM.write(EEPROM_GLOBAL1_H_MODE			,globalColorHSV[0].h		);
+		}
+		else if (result == COLOR_GLOBAL2) 
+		{
+			colorMode = result; 
+			globalColorHSV[1] = colorSelectMenu(globalColorHSV[1]);
+			EEPROM.write(EEPROM_GLOBAL2_HSV_MODE		,globalColorHSV[1].hsvMode	);
+			EEPROM.write(EEPROM_GLOBAL2_H_MODE			,globalColorHSV[1].h		);
+		}
+		else if (result == COLOR_GLOBAL3) 
+		{
+			colorMode = result; 
+			globalColorHSV[2] = colorSelectMenu(globalColorHSV[2]);
+			EEPROM.write(EEPROM_GLOBAL3_HSV_MODE		,globalColorHSV[2].hsvMode	);
+			EEPROM.write(EEPROM_GLOBAL3_H_MODE			,globalColorHSV[2].h		);
+	}
+		else if (result == COLOR_GLOBAL4) 
+		{
+			colorMode = result; 
+			globalColorHSV[3] = colorSelectMenu(globalColorHSV[3]);
+			EEPROM.write(EEPROM_GLOBAL4_HSV_MODE		,globalColorHSV[3].hsvMode	);
+			EEPROM.write(EEPROM_GLOBAL4_H_MODE			,globalColorHSV[3].h		);
+		}
+
 	}
 }
 
@@ -1477,7 +1527,10 @@ void brightnessMenu()
 	{
 		result = runValueMenu(brightnessMenuContent, result, BRIGHT_INCREMENT, BRIGHT_MINIMUM, BRIGHT_MAXIMUM, MENU_BEHAVIOR_STOP, BRIGHT_EXIT, 0);
 		if (result >= BRIGHT_MINIMUM && result <= BRIGHT_MAXIMUM)
-			{brightnessMode = result; }	
+		{
+			brightnessMode = result; 
+			EEPROM.write(EEPROM_BRIGHTNESS_MODE	, brightnessMode );
+		}	
 	}
 }
 
@@ -1485,7 +1538,7 @@ char* speedMenuContent(int pos)
 {
 	if 		(pos == SPEED_TITLE	)	{return("I'm ready for"	);}
 	else if (pos == SPEED_1		)	{return("a Chill Space"		);}
-	else if (pos == SPEED_2		)	{return("Mood lighting"		);}
+	else if (pos == SPEED_2		)	{return("mood Lighting"		);}
 	else if (pos == SPEED_3		)	{return("a Light Show"		);}
 	else if (pos == SPEED_4		)	{return("a Dance Party"		);}
 	else if (pos == SPEED_5		)	{return("a Seizure"			);}
@@ -1495,10 +1548,19 @@ char* speedMenuContent(int pos)
 void speedMenu()
 {
 	int	result = speedMode;
+	if (result == SPEED_EXIT)
+	{
+		result = SPEED_3;
+	}
 	while (result != SPEED_EXIT)
 	{
 		result = runContentMenu(speedMenuContent, result, SPEED_EXIT);
-		loadSpeedMode(result);
+		if (result != SPEED_EXIT)
+		{
+			speedMode = result;
+			loadSpeedMode(result);
+			EEPROM.write(EEPROM_SPEED_MODE , speedMode );
+		}		
 	}
 }
 
@@ -1519,10 +1581,10 @@ void mainMenu()
 	while (result != MAIN_EXIT)
 	{
 		result = runContentMenu(mainMenuContent, result, MAIN_EXIT);
-		if		(result == MAIN_PATTERN		) {mainMode = result; patternMenu();	eepromSavePattern();	}
-		else if (result == MAIN_COLOR		) {mainMode = result; colorMenu();		eepromSaveColors();		}
-		else if (result == MAIN_SPEED		) {mainMode = result; speedMenu();		eepromSaveSpeed();		}
-		else if (result == MAIN_BRIGHTNESS	) {mainMode = result; brightnessMenu();	eepromSaveBrightness();	}
+		if		(result == MAIN_PATTERN		) {mainMode = result; patternMenu();	}
+		else if (result == MAIN_COLOR		) {mainMode = result; colorMenu();		}
+		else if (result == MAIN_SPEED		) {mainMode = result; speedMenu();		}
+		else if (result == MAIN_BRIGHTNESS	) {mainMode = result; brightnessMenu();	}
 	}
 	lcdClearScreen();
 }
