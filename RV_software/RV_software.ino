@@ -600,8 +600,8 @@ enum colorSelectModes {
 enum brightnessModes
 {
 	BRIGHT_TITLE				= MENU_TITLE,
-	BRIGHT_MINIMUM				= 3			,//1%
-	BRIGHT_INCREMENT			= 3			,
+	BRIGHT_MINIMUM				= 5			,//1%
+	BRIGHT_INCREMENT			= 5			,
 	BRIGHT_MAXIMUM				= 100		,//100%
 	BRIGHT_EXIT								,
 	BRIGHT_SIZE					= MENU_SIZE
@@ -1020,7 +1020,7 @@ int runValueMenu (char* (*useMenu)(int), byte startingValue, int increment, int 
 			else 
 			{
 				brightnessMode = tempINT;
-				render();
+					render();
 			}
 		}
 	}
@@ -1045,7 +1045,7 @@ void globalClockUpdate() //deal with all clocks
 
 void globalIntensitySync()
 {
-	globalIntensity = (brightnessMode * 255) / 100; //scale from 100 to 255
+	globalIntensity = ((int)brightnessMode * brightnessMode) / 40 + 4; //scale from 100 to 255
 }
 HSV& colorRandomHSV(HSV& tempHSV)
 {
@@ -1630,4 +1630,5 @@ void loop ()
  	delay(RENDER_RATE); 
 #endif
 	render();
+	
 }
