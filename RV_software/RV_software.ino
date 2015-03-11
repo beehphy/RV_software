@@ -59,7 +59,7 @@ typedef struct {
 #define FRAME_RATE			30
 #define RENDER_RATE			1000 / FRAME_RATE
 //#define DIAGNOSTIC
-#define DIAGNOSTIC_RENDER_RATE (RENDER_RATE * 70 / 100)
+#define DIAGNOSTIC_RENDER_RATE (RENDER_RATE * 7 / 10)
 #define MAX_BRIGHTNESS		300 // MAX_BRIGHTNESS * SCALE_ACCURACY < 32768
 #define SCALE_ACCURACY		100
 #define PIN_RED1			4//2	//LED OUTPUT
@@ -520,7 +520,7 @@ enum speedModes
 	SPEED_1_PERIOD			= FRAME_RATE * 16		,	//larger is slower, 16 second fades
 	SPEED_2_PERIOD			= FRAME_RATE * 8		,	// 8 second
 	SPEED_3_PERIOD			= FRAME_RATE * 4		,	// 4 seconds
-	SPEED_4_PERIOD			= FRAME_RATE 			,	// every second
+	SPEED_4_PERIOD			= FRAME_RATE *2 /3 		,	// every second
 	SPEED_5_PERIOD			= FRAME_RATE / 4			// 4 per second
 };
 enum fadeModes
@@ -1056,9 +1056,9 @@ HSV& colorRandomHSV(HSV& tempHSV)
 }
 Fade& fadeUpdateSequence(Fade& underChange)//, byte val)
 {
-	underChange.startR = leds[underChange.led].r;// underChange.endR;
-	underChange.startG = leds[underChange.led].g;// underChange.endG;
-	underChange.startB = leds[underChange.led].b;// underChange.endB;
+	underChange.startR =  underChange.endR;	// leds[underChange.led].r;
+	underChange.startG =  underChange.endG;	// leds[underChange.led].g;
+	underChange.startB =  underChange.endB;	// leds[underChange.led].b;
 	RGB tempRGB;
 	globalColorHSV[colorSequenceClock.time].v = 255;// val;
 	if (globalColorHSV[underChange.led].hsvMode == COLOR_SELECT_RAINBOW) {globalColorHSV[underChange.led].h = byte(rainbowClock.time / RAINBOW_CLOCK_DIVISOR);}
@@ -1078,9 +1078,9 @@ Fade& fadeUpdateSequence(Fade& underChange)//, byte val)
 }
 Fade& fadeUpdateRandom(Fade& underChange) //, byte val)
 {
-	underChange.startR = leds[underChange.led].r;// underChange.endR;
-	underChange.startG = leds[underChange.led].g;// underChange.endG;
-	underChange.startB = leds[underChange.led].b;// underChange.endB;
+	underChange.startR = underChange.endR;// 	 leds[underChange.led].r;
+	underChange.startG = underChange.endG;// 	 leds[underChange.led].g;
+	underChange.startB = underChange.endB;// 	 leds[underChange.led].b;
 	HSV tempHSV;
 	colorRandomHSV(tempHSV);
 	tempHSV.v = 255; //val;
@@ -1100,8 +1100,7 @@ Fade& fadeUpdateRandom(Fade& underChange) //, byte val)
 int fadeCalcSingle (int startValue, int endValue, int time, int period)
 {
 	//NOW <= START + (FADE_CT * (END - START))/FADE_L
-	return(startValue + (time * (endValue - double(startValue))) / period);
-	
+	return(startValue + (double(time) * (endValue - startValue) ) / period);
 }
 /*
 byte fadeCalcValue (int startValue, int endValue, int time, int period, byte intensity)
@@ -1119,12 +1118,12 @@ RGB& colorRender(Fade& underChange, RGB& tempRGB, byte val)
 		if (colorBehaviorMode == COLOR_BEHAVIOR_SEQUENCE) {fadeUpdateSequence(underChange);} 
 		else if (colorBehaviorMode == COLOR_BEHAVIOR_RANDOM) {fadeUpdateRandom(underChange);}
 	}
-	tempRGB.r = fadeCalcSingle(underChange.startR, underChange.endR, underChange.CLK.time, underChange.CLK.period);
-	tempRGB.g = fadeCalcSingle(underChange.startG, underChange.endG, underChange.CLK.time, underChange.CLK.period);
-	tempRGB.b = fadeCalcSingle(underChange.startB, underChange.endB, underChange.CLK.time, underChange.CLK.period);
-	tempRGB.r = fadeCalcSingle(0, tempRGB.r, val, 255); //apply intensity value
-	tempRGB.g = fadeCalcSingle(0, tempRGB.g, val, 255);
-	tempRGB.b = fadeCalcSingle(0, tempRGB.b, val, 255);
+	tempRGB.r = byte(fadeCalcSingle(underChange.startR, underChange.endR, underChange.CLK.time, underChange.CLK.period));
+	tempRGB.g = byte(fadeCalcSingle(underChange.startG, underChange.endG, underChange.CLK.time, underChange.CLK.period));
+	tempRGB.b = byte(fadeCalcSingle(underChange.startB, underChange.endB, underChange.CLK.time, underChange.CLK.period));
+	tempRGB.r = byte(fadeCalcSingle(0, tempRGB.r, val, 255)); //apply intensity value
+	tempRGB.g = byte(fadeCalcSingle(0, tempRGB.g, val, 255));
+	tempRGB.b = byte(fadeCalcSingle(0, tempRGB.b, val, 255));
 	return(tempRGB);
 }
 RGB& colorBalance (RGB& tempRGB)
@@ -1228,7 +1227,7 @@ void showDiagnostic ()
 {
 /*
 	byte i = 0;
-	while(i < 2)
+	while(i < 1)
 	{
 		lcdPrintHex(fadeSets[i].CLK.period, 2*i		,0		,1);
 		lcdPrintHex(fadeSets[i].endR,		2*i		,30		,0);
@@ -1239,29 +1238,38 @@ void showDiagnostic ()
 		lcdPrintHex(leds[i].g,				2*i+1	,60		,0);
 		lcdPrintHex(leds[i].b,				2*i+1	,90		,0); 
 		
-		i++;
-	}*/
+		i++;*/
+	
 /*
 	lcdPrintInt(colorRenderClock.time, 0, 0, 1);
 	lcdPrintInt(colorRenderClock.period, 0, 30, 0);
 	lcdPrintInt(colorRenderClock.rate, 0, 60, 0);
 */
-	lcdPrintInt(patternRenderClock.time,	0, 0, 1);
-	lcdPrintInt(patternRenderClock.period,	0, 30, 0);
-	lcdPrintInt(patternRenderClock.rate,	0, 60, 0);
+	lcdPrintInt(patternRenderClock.time		,0, 0, 1);
+	lcdPrintInt(patternRenderClock.period	,1, 0, 1);
+	lcdPrintInt(patternRenderClock.rate		,2, 0, 1);
+	
+	lcdPrintHex(fadeSets[0].startR			, 0, 40, 0);
+	lcdPrintHex(leds[0].r					, 1, 40, 0);
+	lcdPrintHex(fadeSets[0].endR			, 2, 40, 0);
+	lcdPrintHex(fadeSets[0].startG			, 0, 60, 0);
+	lcdPrintHex(leds[0].g					, 1, 60, 0);
+	lcdPrintHex(fadeSets[0].endG			, 2, 60, 0);
+	lcdPrintHex(fadeSets[0].startB			, 0, 80, 0);
+	lcdPrintHex(leds[0].b					, 1, 80, 0);
+	lcdPrintHex(fadeSets[0].endB			, 2, 80, 0);
+	
 /*
 	lcdPrintInt(rainbowClock.time, 2, 0, 1);
 	lcdPrintInt(rainbowClock.period, 2, 30, 0);
 	lcdPrintInt(rainbowClock.rate, 2, 60, 0);
-*/
-	lcdPrintHex(waveSets[4].phase,	1, 0, 1);
-	lcdPrintHex(waveSets[4].rise ,	1, 20, 0);
-	lcdPrintHex(waveSets[4].width,	1, 40, 0);
-	lcdPrintHex(waveSets[4].fall ,	1, 60, 0);
-	lcdPrintHex(waveSets[4].count,	1, 80, 0);
-	lcdPrintHex(waveSets[4].period,	1, 100, 0);
-	
-	
+
+	lcdPrintHex(waveSets[4].phase,	3, 0, 1);
+	lcdPrintHex(waveSets[4].rise ,	3, 20, 0);
+	lcdPrintHex(waveSets[4].width,	3, 40, 0);
+	lcdPrintHex(waveSets[4].fall ,	3, 60, 0);
+	lcdPrintHex(waveSets[4].count,	3, 80, 0);
+	lcdPrintHex(waveSets[4].period,	3, 100, 0);*/
 }
 #endif
 
@@ -1621,6 +1629,5 @@ void loop ()
 #else
  	delay(RENDER_RATE); 
 #endif
-
 	render();
 }
