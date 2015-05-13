@@ -114,7 +114,7 @@ typedef struct {
 #define COLUMN_OFFSET 4
 #define ASCII_OFFSET_LOW  0x20
 #define ASCII_OFFSET_HIGH 0x7e
-static byte PROGMEM font5x8[][5] = {// The 7-bit ASCII character set...
+const byte font5x8[][5] PROGMEM = {// The 7-bit ASCII character set...
 	{ 0x00, 0x00, 0x00, 0x00, 0x00 },  // 20 Space
 	{ 0x00, 0x00, 0x5f, 0x00, 0x00 },  // 21 !
 	{ 0x00, 0x07, 0x00, 0x07, 0x00 },  // 22 "
@@ -211,8 +211,8 @@ static byte PROGMEM font5x8[][5] = {// The 7-bit ASCII character set...
 	{ 0x00, 0x41, 0x36, 0x08, 0x00 },  // 7d close curl
 	{ 0x10, 0x08, 0x08, 0x10, 0x08 }  // 7e ~
 };
-static byte PROGMEM unknown5x8[5] = { 0x7f, 0x41, 0x41, 0x41, 0x7f }; // unknown char
-static byte PROGMEM custom5x8[][5] = { // A place for custom characters
+const byte unknown5x8[5] PROGMEM = { 0x7f, 0x41, 0x41, 0x41, 0x7f }; // unknown char
+const byte custom5x8[2][5] PROGMEM = { // A place for custom characters
 	{ 0x00, 0x00, 0x00, 0x00, 0x00 },  // Space
 	{ 0x7f, 0x41, 0x41, 0x41, 0x7f }   // ?
 };
@@ -808,8 +808,10 @@ void hardwareInit ()
 	
 	pinMode(PUSH_BUTTON, INPUT_PULLUP);
 	pinMode(OLED_R, OUTPUT);
+	digitalWrite(OLED_R, LOW);
+	_delay_ms(250);
 	digitalWrite(OLED_R, HIGH);
-	
+	delay(1500);
 }
 RGB& hsvToRgb(HSV& input, RGB& tempRGB)
 {
@@ -1614,9 +1616,9 @@ void splashScreen ()
 
 void setup ()
 {
+	hardwareInit();
 	eepromLoad();
-	hardwareInit();	
- 	lcdInit();
+	lcdInit();
     splashScreen();
 }
 void loop ()
