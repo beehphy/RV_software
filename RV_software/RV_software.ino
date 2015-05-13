@@ -565,13 +565,13 @@ enum colorHSVvalues
 {
 	COLOR_HSV_TITLE		= MENU_TITLE,
 	COLOR_HSV_RED		= 0,
-	COLOR_HSV_ORANGE	= 15,
-	COLOR_HSV_YELLOW	= 30,
+	COLOR_HSV_ORANGE	= 21,
+	COLOR_HSV_YELLOW	= 47,
 	COLOR_HSV_GREEN		= 86,
-	COLOR_HSV_TEAL		= 105,
+	COLOR_HSV_TEAL		= 112,
 	COLOR_HSV_BLUE		= 172,
-	COLOR_HSV_SKY		= 150,
-	COLOR_HSV_VIOLET	= 190,
+	COLOR_HSV_SKY		= 152,
+	COLOR_HSV_VIOLET	= 195,
 	COLOR_HSV_PINK		= 234,
 	COLOR_HSV_END		= 255,
 	COLOR_HSV_WHITE		,
@@ -1138,6 +1138,7 @@ RGB& colorBalance (RGB& tempRGB)
 		tempRGB.g = (tempRGB.g * ratio) / SCALE_ACCURACY;
 		tempRGB.b = (tempRGB.b * ratio) / SCALE_ACCURACY;
 	}
+	return(tempRGB);
 }
 RGB& colorValueRender(int ledNumber, byte val, RGB& tempRGB)
 {
@@ -1307,19 +1308,22 @@ char* customColorMenuContent(int pos)
 	else if (pos == COLOR_HSV_SIZE		)	{return("255"					);} //100%
 	else if (pos >= COLOR_HSV_RED && pos <= COLOR_HSV_END	)
 	{
-		//build a string based on global brightness
-		char* tempstring = "Hue: "; // room for value render
-		char* buffer = itoa(pos, tempChar, 10);
-		byte i = 5; //length of hue:
-		byte len = strlen(buffer);
-		byte j = 0;
-		while (j < len) {
-			tempstring[i] = buffer[j];
-			j++;
-			i++;
-		}
-		tempstring[i] = NULL;
-		return(	tempstring	);
+// 		//build a string based on global brightness
+// 		char* tempstring = "Hue:        d "; // room for value render
+// 		char* buffer = itoa(pos, tempChar, 10);
+// 		byte i = 4; //length of hue:
+// 		byte len = 4;//strlen(buffer);
+// 		byte j = 0;
+// 		while (j < len) {
+// 			tempstring[i] = buffer[j];
+// 			j++;
+// 			i++;
+// 		}
+// 		//tempstring[i] = NULL;
+// 		return(	tempstring	);
+		lcdPrint("Hue: ");
+		lcdPrint(itoa(pos, tempChar, 10));
+		return(	 " " );
 	}
 	else									{return(errorMessage()			);}
 }
@@ -1520,20 +1524,36 @@ char* brightnessMenuContent(int pos)
 	else if (pos >= BRIGHT_MINIMUM && pos <= BRIGHT_MAXIMUM	)	
 	{	
 		//build a string based on global brightness
-		char* tempstring = "Level: "; // room for value render
-		char* buffer = itoa(pos, tempChar, 10);
-		byte i = 7; //length of brightness
-		byte len = strlen(buffer);
-		byte j = 0;
-		while (j < len) {
-			tempstring[i] = buffer[j];
-			j++;
-			i++;
-		}
-		tempstring[i] = '%';
-		i++;
-		tempstring[i] = NULL;
-		return(	tempstring	);
+// 		char* tempstring = "Level: "; // room for value render
+// 		char* buffer = itoa(pos, tempChar, 10);
+// 		char* ending = "%";
+// 		char output [20];
+// 		output[0] = '\0';
+// 		strcat(output, tempstring);
+// 		strcat(output, tempChar);
+// 		lcdPrint(output);
+// 		strcat(output, ending);
+// 		
+		//lcdPrint("%");
+		//lcdPrintInt(pos,3,0,1);
+		//lcdPrintln(buffer);
+// 		byte i = 7; //length of level:
+// 		byte len = strlen(tempChar);
+// 		//lcdPrintInt(len,1,0,0);
+// 		byte j = 0;
+// 		while ( j < len) {
+// 			tempstring[i] = buffer[j];
+// 			//lcdPrintInt(j,1,0,0);
+// 			j++;
+// 			i++;
+// 		}
+		//tempstring[i] = '%';
+		//i++;
+		//tempstring[i] = NULL;
+		//tempstring += buffer;
+		lcdPrint("Level: ");
+		lcdPrint(itoa(pos, tempChar, 10));
+		return(	 "%" );
 	}
 	else if (pos == BRIGHT_SIZE		)	{return("100"					);} //100%
 	else								{return(errorMessage()			);}
