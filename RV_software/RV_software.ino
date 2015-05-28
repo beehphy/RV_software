@@ -226,7 +226,7 @@ char tempChar [MAX_COLS]; // char width of OLED display
 void twiInit(void)
 {
 	TWSR = 0x00; //clears the prescaler (twps0 twps1) bits for F set
-	TWBR = 0x10; //set SCL to 400kHz
+	TWBR = 0x30; //set SCL to 400kHz
 	TWCR = ((1<<TWINT) | (1<<TWEN)); //enable TWI should configure pins, reset flags
 }
 void twiStart(void){	
@@ -808,10 +808,12 @@ void hardwareInit ()
 	
 	pinMode(PUSH_BUTTON, INPUT_PULLUP);
 	pinMode(OLED_R, OUTPUT);
+	digitalWrite(OLED_R, HIGH);
+	_delay_ms(150);
 	digitalWrite(OLED_R, LOW);
 	_delay_ms(250);
 	digitalWrite(OLED_R, HIGH);
-	delay(1500);
+	_delay_ms(1500);
 }
 RGB& hsvToRgb(HSV& input, RGB& tempRGB)
 {
